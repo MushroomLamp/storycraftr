@@ -25,21 +25,9 @@ def initialize_openai_client(book_path: str):
         book_path (str): Path to the book directory.
     """
     config = load_book_config(book_path)
-    # Si no hay configuración o no hay URL específica, usar la URL por defecto
     api_base = getattr(config, "openai_url", "https://api.openai.com/v1")
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=api_base)
-
-    # Verificar si la API es compatible con Assistants
-    try:
-        # Intentar listar los assistants para verificar la compatibilidad
-        client.beta.assistants.list()
-        return client
-    except Exception as e:
-        console.print(
-            f"[bold red]Error: The OpenAI API version being used does not support Assistants API. Please ensure you are using a compatible version.[/bold red]"
-        )
-        console.print(f"[bold red]Error details: {str(e)}[/bold red]")
-        raise
+    return client
 
 
 def get_vector_store_id_by_name(assistant_name: str, client) -> str:
@@ -175,7 +163,7 @@ def load_markdown_files(book_path: str) -> list:
 
 def delete_assistant(book_path: str):
     """
-    Delete an assistant if it exists.
+    Assistants API is deprecated. This now deletes the associated vector store, if present.
 
     Args:
         book_path (str): Path to the book directory.
@@ -185,29 +173,27 @@ def delete_assistant(book_path: str):
     """
     client = initialize_openai_client(book_path)
     name = os.path.basename(book_path)
-    console.print(
-        f"[bold blue]Checking if assistant '{name}' exists for deletion...[/bold blue]"
-    )
-
+    expected_name = f"{name} Docs"
     try:
-        assistants = client.assistants.list()
-        for assistant in assistants.data:
-            if assistant.name == name:
-                console.print(f"Deleting assistant {name}...")
-                client.assistants.delete(assistant_id=assistant.id)
+        vector_stores = client.vector_stores.list()
+        for vs in vector_stores.data:
+            if getattr(vs, "name", None) == expected_name:
+                console.print(f"[bold blue]Deleting vector store '{expected_name}'...[/bold blue]")
+                client.vector_stores.delete(vector_store_id=vs.id)
                 console.print(
-                    f"[bold green]Assistant {name} deleted successfully.[/bold green]"
+                    f"[bold green]Vector store '{expected_name}' deleted successfully.[/bold green]"
                 )
-                break
-    except AttributeError:
-        console.print(
-            f"[bold red]Error: The OpenAI API version being used does not support assistants. Please ensure you are using a compatible version.[/bold red]"
-        )
+                return
+        console.print(f"[bold yellow]No vector store named '{expected_name}' found.[/bold yellow]")
+    except Exception as e:
+        console.print(f"[bold red]Error deleting resources: {str(e)}[/bold red]")
 
 
 def create_or_get_assistant(book_path: str):
     """
-    Create or get an existing assistant for the book.
+    Prepare a lightweight assistant configuration for the book using the Responses API.
+
+    Ensures a vector store exists and returns an object with name, model and instructions.
 
     Args:
         book_path (str): Path to the book directory.
@@ -215,12 +201,10 @@ def create_or_get_assistant(book_path: str):
     config = load_book_config(book_path)
     client = initialize_openai_client(book_path)
 
-    # Usar valores por defecto si config es None o no tiene los atributos
     openai_model = (
         "gpt-4" if config is None else getattr(config, "openai_model", "gpt-4")
     )
 
-    # Obtener el contenido del behavior file
     behavior_file = Path(book_path) / "behaviors" / "default.txt"
     if behavior_file.exists():
         behavior_content = behavior_file.read_text(encoding="utf-8")
@@ -228,59 +212,36 @@ def create_or_get_assistant(book_path: str):
         console.print("[red]Behavior file not found.[/red]")
         return None
 
-    # Usar la API de Assistants
-    assistants = client.beta.assistants.list(
-        order="desc",
-        limit=100,
-    )
-    assistants_api = client.beta.assistants
-    vector_stores_api = client.vector_stores
-
     name = Path(book_path).name
-    for assistant in assistants.data:
-        if assistant.name == name:
-            console.print(
-                f"[bold yellow]Assistant {name} already exists.[/bold yellow]"
-            )
-            return assistant
 
-    try:
-        # Crear vector store para file_search
-        console.print(f"[bold blue]Creating vector store for {name}...[/bold blue]")
-        vector_store = vector_stores_api.create(name=f"{name} Docs")
+    # Ensure vector store exists (create if missing)
+    vector_store_id = get_vector_store_id_by_name(name, client)
+    if vector_store_id is None:
+        try:
+            console.print(f"[bold blue]Creating vector store for {name}...[/bold blue]")
+            vector_store = client.vector_stores.create(name=f"{name} Docs")
 
-        # Cargar archivos del libro
-        console.print(f"[bold blue]Loading book files from {book_path}...[/bold blue]")
-        upload_markdown_files_to_vector_store(vector_store.id, book_path, client)
+            console.print(f"[bold blue]Loading book files from {book_path}...[/bold blue]")
+            upload_markdown_files_to_vector_store(vector_store.id, book_path, client)
 
-        # Esperar a que los archivos se carguen completamente
-        console.print("[bold blue]Waiting for files to be processed...[/bold blue]")
-        time.sleep(5)  # Dar tiempo para que los archivos se procesen
+            console.print("[bold blue]Waiting for files to be processed...[/bold blue]")
+            time.sleep(5)
 
-        # Si no existe, crear uno nuevo con las herramientas soportadas
-        console.print(f"[bold blue]Creating assistant {name}...[/bold blue]")
-        assistant = assistants_api.create(
-            name=name,
-            instructions=behavior_content,
-            model=openai_model,
-            tools=[{"type": "code_interpreter"}, {"type": "file_search"}],
-            temperature=0.7,  # Nivel de creatividad balanceado
-            top_p=1.0,  # Considerar todas las opciones
-        )
+            vector_store_id = vector_store.id
+        except Exception as e:
+            console.print(f"[bold red]Error preparing vector store: {str(e)}[/bold red]")
+            raise
 
-        # Asociar el vector store con el asistente
-        console.print(
-            f"[bold blue]Associating vector store with assistant {name}...[/bold blue]"
-        )
-        assistants_api.update(
-            assistant_id=assistant.id,
-            tool_resources={"file_search": {"vector_store_ids": [vector_store.id]}},
-        )
+    # Return a lightweight assistant-like object
+    class LightweightAssistant:
+        def __init__(self, name: str, model: str, instructions: str):
+            self.name = name
+            self.model = model
+            self.instructions = instructions
+            self.id = name  # for backward-compat when code expects .id
 
-        return assistant
-    except Exception as e:
-        console.print(f"[bold red]Error creating assistant: {str(e)}[/bold red]")
-        raise
+    console.print(f"[bold yellow]Using Responses API for assistant '{name}'.[/bold yellow]")
+    return LightweightAssistant(name=name, model=openai_model, instructions=behavior_content)
 
 
 def create_message(
@@ -322,7 +283,7 @@ def create_message(
 
     if should_print:
         console.print(
-            f"[bold blue]Creating message in thread {thread_id}...[/bold blue]"
+            f"[bold blue]Creating response (thread {thread_id})...[/bold blue]"
         )
 
     if file_path and os.path.exists(file_path):
@@ -366,82 +327,116 @@ def create_message(
                 "[bold blue]Starting multi-part response generation (3 parts total)...[/bold blue]"
             )
 
-        client.beta.threads.messages.create(
-            thread_id=thread_id, role="user", content=prompt_with_hash
-        )
-
-        run = client.beta.threads.runs.create(
-            thread_id=thread_id, assistant_id=assistant.id
-        )
-
         if internal_progress:
             progress.start()
 
-        response_text = ""
         done_flag = "END_OF_RESPONSE"
 
-        # Initial run to get the first part of the response
-        while run.status in ["queued", "in_progress"]:
-            run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-            progress.update(task_id, advance=1)
-            time.sleep(0.5)
+        # Helper to extract text robustly from Responses API
+        def _extract_text(resp) -> str:
+            # Prefer convenience property if present
+            for attr in ("output_text",):
+                try:
+                    val = getattr(resp, attr)
+                    if isinstance(val, str) and val:
+                        return val
+                except Exception:
+                    pass
+            # Fallback to dict parsing for generic shapes
+            data = None
+            for to_dict in (getattr(resp, "model_dump", None), getattr(resp, "to_dict", None)):
+                try:
+                    if callable(to_dict):
+                        data = to_dict()
+                        break
+                except Exception:
+                    pass
+            if not isinstance(data, dict):
+                return ""
+            if isinstance(data.get("output_text"), str):
+                return data["output_text"]
+            texts = []
+            output = data.get("output")
+            if isinstance(output, list):
+                for item in output:
+                    if not isinstance(item, dict):
+                        continue
+                    contents = item.get("content")
+                    if isinstance(contents, list):
+                        for c in contents:
+                            if not isinstance(c, dict):
+                                continue
+                            # Example structure: {"type": "output_text", "text": "..."}
+                            if c.get("type") == "output_text" and isinstance(c.get("text"), str):
+                                texts.append(c.get("text"))
+                            # Older structure: {"type": "text", "text": {"value": "..."}}
+                            elif c.get("type") == "text":
+                                inner = c.get("text")
+                                if isinstance(inner, dict) and isinstance(inner.get("value"), str):
+                                    texts.append(inner.get("value"))
+            return "\n".join(texts) if texts else ""
 
-        messages = client.beta.threads.messages.list(thread_id=thread_id)
-        response_text = messages.data[0].content[0].text.value
+        # Compose base instruction + user input
+        base_instructions = assistant.instructions if hasattr(assistant, "instructions") else ""
+        vector_store_id = get_vector_store_id_by_name(assistant.name, client)
+
+        def _create_response(input_text: str):
+            tools = (
+                [{"type": "file_search", "vector_store_ids": [vector_store_id]}]
+                if vector_store_id
+                else [{"type": "file_search"}]
+            )
+            kwargs = dict(
+                model=assistant.model,
+                input=f"System instructions:\n{base_instructions}\n\nUser:\n{input_text}",
+                #temperature=0.7,
+                top_p=1.0,
+                tools=tools,
+            )
+            # Use conversation to preserve message continuity if supported
+            if thread_id:
+                try:
+                    return client.responses.create(**kwargs, conversation={"id": thread_id})
+                except TypeError:
+                    try:
+                        return client.responses.create(**kwargs, conversation=thread_id)
+                    except TypeError:
+                        return client.responses.create(**kwargs)
+            return client.responses.create(**kwargs)
+
+        # First response
+        response = _create_response(prompt_with_hash)
+        response_text = _extract_text(response)
 
         if config.multiple_answer and not force_single_answer:
-            console.print(
-                "[bold green]✓ First part of the response received[/bold green]"
-            )
+            console.print("[bold green]✓ First part of the response received[/bold green]")
 
-        # Continue iterating if the response is incomplete or if multiple_answer is true
+        # Continue for next parts if needed
         iter = 0
-        while (
-            not force_single_answer and (done_flag not in response_text) and iter < 2
-        ):  # Changed to 2 to limit to 3 parts total
+        while (not force_single_answer and (done_flag not in response_text) and iter < 2):
             iter += 1
             if should_print:
-                console.print(
-                    f"[bold blue]Requesting part {iter + 1} of 3...[/bold blue]"
-                )
+                console.print(f"[bold blue]Requesting part {iter + 1} of 3...[/bold blue]")
 
-            # Add reminder for last part
             next_prompt = "next"
-            if iter == 2:  # This is the third and final part
+            if iter == 2:
                 next_prompt = "THIS IS THE FINAL PART. PLEASE COMPLETE YOUR RESPONSE AND END WITH 'END_OF_RESPONSE'."
-                console.print(
-                    "[bold yellow]⚠ This is the final part. The response should be completed and include END_OF_RESPONSE.[/bold yellow]"
-                )
+                console.print("[bold yellow]⚠ This is the final part. The response should be completed and include END_OF_RESPONSE.[/bold yellow]")
 
-            client.beta.threads.messages.create(
-                thread_id=thread_id, role="user", content=next_prompt
+            conversation = (
+                f"{prompt_with_hash}\n\nAssistant so far:\n{response_text}\n\n{next_prompt}"
             )
-            run = client.beta.threads.runs.create(
-                thread_id=thread_id, assistant_id=assistant.id
-            )
-
-            while run.status in ["queued", "in_progress"]:
-                run = client.beta.threads.runs.retrieve(
-                    thread_id=thread_id, run_id=run.id
-                )
-                progress.update(task_id, advance=1)
-                time.sleep(0.5)
-
-            messages = client.beta.threads.messages.list(thread_id=thread_id)
-            new_response = messages.data[0].content[0].text.value
+            response = _create_response(conversation)
+            new_response = _extract_text(response)
 
             if config.multiple_answer and not force_single_answer:
-                console.print(
-                    f"[bold green]✓ Part {iter + 1} of 3 received[/bold green]"
-                )
+                console.print(f"[bold green]✓ Part {iter + 1} of 3 received[/bold green]")
 
-            # Append the new response to the existing one
             response_text += "\n" + new_response
 
         if internal_progress:
             progress.stop()
 
-        # Remove the done flag if it exists
         if done_flag in response_text:
             response_text = response_text.replace(done_flag, "")
             if config.multiple_answer and not force_single_answer:
@@ -458,35 +453,20 @@ def create_message(
 
 def get_thread(book_path: str):
     """
-    Retrieve or create a new thread.
+    Create a conversation compatible with the Responses API.
 
     Args:
         book_path (str): Path to the book directory.
 
     Returns:
-        object: The thread object.
+        object: An object with an "id" attribute starting with 'conv_'.
     """
     client = initialize_openai_client(book_path)
-    try:
-        # Intentar con la API beta primero
-        thread = client.beta.threads.create()
-        return thread
-    except AttributeError:
-        # Si falla, intentar con la API más reciente
-        try:
-            thread = client.threads.create()
-            return thread
-        except Exception as e:
-            console.print(
-                f"[bold red]Error creating thread: {str(e)}. Please ensure you are using a compatible version of the OpenAI API.[/bold red]"
-            )
-
-            # Crear un thread dummy para evitar errores
-            class DummyThread:
-                def __init__(self):
-                    self.id = "dummy_thread_id"
-
-            return DummyThread()
+    conversation = client.conversations.create()
+    class ConversationWrapper:
+        def __init__(self, id: str):
+            self.id = id
+    return ConversationWrapper(conversation.id)
 
 
 def delete_file(vector_stores_api, vector_store_id, file_id):

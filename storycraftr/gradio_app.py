@@ -218,7 +218,7 @@ def action_outline(cmd: str, current_book: str, prompt: str) -> str:
         return "Select a book first."
     if not prompt:
         return "Provide a prompt."
-    args = ["outline", cmd, "--book-path", current_book, prompt]
+    args = ["outline", cmd, "--book-path", current_book, "--", prompt]
     out, _ = run_cli(args, cwd=current_book)
     return out or "Done."
 
@@ -228,7 +228,7 @@ def action_worldbuilding(cmd: str, current_book: str, prompt: str) -> str:
         return "Select a book first."
     if not prompt:
         return "Provide a prompt."
-    args = ["worldbuilding", cmd, "--book-path", current_book, prompt]
+    args = ["worldbuilding", cmd, "--book-path", current_book, "--", prompt]
     out, _ = run_cli(args, cwd=current_book)
     return out or "Done."
 
@@ -238,7 +238,15 @@ def action_chapter(chapter_number: int, current_book: str, prompt: str) -> str:
         return "Select a book first."
     if not prompt:
         return "Provide a prompt."
-    args = ["chapters", "chapter", str(chapter_number), prompt, "--book-path", current_book]
+    args = [
+        "chapters",
+        "chapter",
+        "--book-path",
+        current_book,
+        "--",
+        str(int(chapter_number)),
+        prompt,
+    ]
     out, _ = run_cli(args, cwd=current_book)
     return out or "Done."
 
@@ -248,7 +256,7 @@ def action_cover(cmd: str, current_book: str, prompt: str) -> str:
         return "Select a book first."
     if not prompt:
         return "Provide a prompt."
-    args = ["chapters", cmd, prompt, "--book-path", current_book]
+    args = ["chapters", cmd, "--book-path", current_book, "--", prompt]
     out, _ = run_cli(args, cwd=current_book)
     return out or "Done."
 
@@ -284,10 +292,11 @@ def action_iterate_fix_name(current_book: str, original_name: str, new_name: str
     args = [
         "iterate",
         "fix-name",
-        original_name,
-        new_name,
         "--book-path",
         current_book,
+        "--",
+        original_name,
+        new_name,
     ]
     out, _ = run_cli(args, cwd=current_book)
     return out or "Done."
@@ -301,10 +310,11 @@ def action_iterate_refine_motivation(current_book: str, character_name: str, sto
     args = [
         "iterate",
         "refine-motivation",
-        character_name,
-        story_context,
         "--book-path",
         current_book,
+        "--",
+        character_name,
+        story_context,
     ]
     out, _ = run_cli(args, cwd=current_book)
     return out or "Done."
@@ -318,9 +328,10 @@ def action_iterate_strengthen_argument(current_book: str, argument: str) -> str:
     args = [
         "iterate",
         "strengthen-argument",
-        argument,
         "--book-path",
         current_book,
+        "--",
+        argument,
     ]
     out, _ = run_cli(args, cwd=current_book)
     return out or "Done."
@@ -334,10 +345,11 @@ def action_iterate_insert_chapter(current_book: str, position: int, prompt: str)
     args = [
         "iterate",
         "insert-chapter",
-        str(int(position)),
-        prompt,
         "--book-path",
         current_book,
+        "--",
+        str(int(position)),
+        prompt,
     ]
     out, _ = run_cli(args, cwd=current_book)
     return out or "Done."
@@ -351,10 +363,11 @@ def action_iterate_add_flashback(current_book: str, position: int, prompt: str) 
     args = [
         "iterate",
         "add-flashback",
-        str(int(position)),
-        prompt,
         "--book-path",
         current_book,
+        "--",
+        str(int(position)),
+        prompt,
     ]
     out, _ = run_cli(args, cwd=current_book)
     return out or "Done."
@@ -368,10 +381,11 @@ def action_iterate_split_chapter(current_book: str, position: int, prompt: str) 
     args = [
         "iterate",
         "split-chapter",
-        str(int(position)),
-        prompt,
         "--book-path",
         current_book,
+        "--",
+        str(int(position)),
+        prompt,
     ]
     out, _ = run_cli(args, cwd=current_book)
     return out or "Done."
@@ -385,9 +399,10 @@ def action_iterate_check_consistency(current_book: str, prompt: str) -> str:
     args = [
         "iterate",
         "check-consistency",
-        prompt,
         "--book-path",
         current_book,
+        "--",
+        prompt,
     ]
     out, _ = run_cli(args, cwd=current_book)
     return out or "Done."

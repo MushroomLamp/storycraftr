@@ -1,0 +1,80 @@
+- date: September 05, 2025
+  original_prompt: "\nWrite the book on lang \"en\".\nReturn in markdown format, without\
+    \ using code block syntax (no triple backticks or code fences).\nDo not add your\
+    \ comments ath thend.\nYou are MushroomLamp writing a new engaging book.\n\n\n\
+    Please provide the response in exactly 3 parts to avoid output token limitations.\
+    \ ONLY in the final (third) part, indicate 'END_OF_RESPONSE' when the response\
+    \ is complete. Continue providing the next part of the response when you receive\
+    \ the prompt 'next'.\n\n\nCreate a general outline for the book The Order of Chaos\
+    \ based on this prompt: - Tells the story of Sauron (and Melkor / Morgoth), from\
+    \ Saurons perspective. It should uniquely show his perspective, rather than just\
+    \ painting him as \u2018the big bad\u2019. \n\n- Follows a lore friendly timeline.\
+    \ \n\n- Starts from Year of the Trees, year 1099, \u2018The Battle of the Powers\u2019\
+    \ from the first age, and Melkor\u2019s capture\n\n- End at the end of Age 1,\
+    \ Years of the Sun, year 590\n\n- I want to show all the emotional and intelligent\
+    \ intricacies and deceptions of Sauron. From his perspective, he isnt a \u2018\
+    bad guy\u2019, even if in reality he is.\n\n- show Saurons meetings, deceptions\
+    \ and his silver tongue in detail .\nFocus on general outline, then I will request\
+    \ help on plot-points, character-summary and chapt-synopsis.\n\n\nHere is the\
+    \ existing content to improve:\n# General Outline\n\nThis is the general outline\
+    \ of the book."
+- date: September 05, 2025
+  original_prompt: "\nWrite the book on lang \"en\".\nReturn in markdown format, without\
+    \ using code block syntax (no triple backticks or code fences).\nDo not add your\
+    \ comments ath thend.\nYou are MushroomLamp writing a new engaging book.\n\n\n\
+    Please provide the response in exactly 3 parts to avoid output token limitations.\
+    \ ONLY in the final (third) part, indicate 'END_OF_RESPONSE' when the response\
+    \ is complete. Continue providing the next part of the response when you receive\
+    \ the prompt 'next'.\n\n\nCreate a general outline for the book The Order of Chaos\
+    \ based on this prompt: - Tells the story of Sauron (and Melkor / Morgoth), from\
+    \ Saurons perspective. It should uniquely show his perspective, rather than just\
+    \ painting him as \u2018the big bad\u2019. \n\n- Follows a lore friendly timeline.\
+    \ \n\n- Starts from Year of the Trees, year 1099, \u2018The Battle of the Powers\u2019\
+    \ from the first age, and Melkor\u2019s capture\n\n- End at the end of Age 1,\
+    \ Years of the Sun, year 590\n\n- I want to show all the emotional and intelligent\
+    \ intricacies and deceptions of Sauron. From his perspective, he isnt a \u2018\
+    bad guy\u2019, even if in reality he is.\n\n- show Saurons meetings, deceptions\
+    \ and his silver tongue in detail .\nFocus on general outline, then I will request\
+    \ help on plot-points, character-summary and chapt-synopsis.\n\n\nHere is the\
+    \ existing content to improve:\n# General Outline\n\nThis is the general outline\
+    \ of the book."
+- date: September 05, 2025
+  original_prompt: "\nWrite the book on lang \"en\".\nReturn in markdown format, without\
+    \ using code block syntax (no triple backticks or code fences).\nDo not add your\
+    \ comments ath thend.\nYou are MushroomLamp writing a new engaging book.\n\n\n\
+    Please provide the response in exactly 3 parts to avoid output token limitations.\
+    \ ONLY in the final (third) part, indicate 'END_OF_RESPONSE' when the response\
+    \ is complete. Continue providing the next part of the response when you receive\
+    \ the prompt 'next'.\n\n\nCreate a general outline for the book The Order of Chaos\
+    \ based on this prompt: - Tells the story of Sauron (and Melkor / Morgoth), from\
+    \ Saurons perspective. It should uniquely show his perspective, rather than just\
+    \ painting him as \u2018the big bad\u2019. \n\n- Follows a lore friendly timeline.\
+    \ \n\n- Starts from Year of the Trees, year 1099, \u2018The Battle of the Powers\u2019\
+    \ from the first age, and Melkor\u2019s capture\n\n- End at the end of Age 1,\
+    \ Years of the Sun, year 590\n\n- I want to show all the emotional and intelligent\
+    \ intricacies and deceptions of Sauron. From his perspective, he isnt a \u2018\
+    bad guy\u2019, even if in reality he is.\n\n- show Saurons meetings, deceptions\
+    \ and his silver tongue in detail .\nFocus on general outline, then I will request\
+    \ help on plot-points, character-summary and chapt-synopsis.\n\n\nHere is the\
+    \ existing content to improve:\n# General Outline\n\nThis is the general outline\
+    \ of the book."
+- date: September 05, 2025
+  original_prompt: "\nWrite the book on lang \"en\".\nReturn in markdown format, without\
+    \ using code block syntax (no triple backticks or code fences).\nDo not add your\
+    \ comments ath thend.\nYou are MushroomLamp writing a new engaging book.\n\n\n\
+    Please provide the response in exactly 3 parts to avoid output token limitations.\
+    \ ONLY in the final (third) part, indicate 'END_OF_RESPONSE' when the response\
+    \ is complete. Continue providing the next part of the response when you receive\
+    \ the prompt 'next'.\n\n\nCreate a general outline for the book The Order of Chaos\
+    \ based on this prompt: - Tells the story of Sauron (and Melkor / Morgoth), from\
+    \ Saurons perspective. It should uniquely show his perspective, rather than just\
+    \ painting him as \u2018the big bad\u2019. \n\n- Follows a lore friendly timeline.\
+    \ \n\n- Starts from Year of the Trees, year 1099, \u2018The Battle of the Powers\u2019\
+    \ from the first age, and Melkor\u2019s capture\n\n- End at the end of Age 1,\
+    \ Years of the Sun, year 590\n\n- I want to show all the emotional and intelligent\
+    \ intricacies and deceptions of Sauron. From his perspective, he isnt a \u2018\
+    bad guy\u2019, even if in reality he is.\n\n- show Saurons meetings, deceptions\
+    \ and his silver tongue in detail .\nFocus on general outline, then I will request\
+    \ help on plot-points, character-summary and chapt-synopsis.\n\n\nHere is the\
+    \ existing content to improve:\n# General Outline\n\nThis is the general outline\
+    \ of the book."
