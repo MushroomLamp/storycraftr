@@ -1,0 +1,32 @@
+- date: September 05, 2025
+  original_prompt: '
+
+    Write the book on lang "en".
+
+    Return in markdown format, without using code block syntax (no triple backticks
+    or code fences).
+
+    Do not add your comments ath thend.
+
+    You are None writing a new engaging book.
+
+
+
+    Please provide the response in exactly 3 parts to avoid output token limitations.
+    ONLY in the final (third) part, indicate ''END_OF_RESPONSE'' when the response
+    is complete. Continue providing the next part of the response when you receive
+    the prompt ''next''.
+
+
+
+    Generate detailed history information for the book''s world based on this prompt:
+    Age 1, middle earth, lord of the rings. centred around the battle of power.
+
+
+
+    Here is the existing content to improve:
+
+    # History
+
+
+    The history of the world goes here.'

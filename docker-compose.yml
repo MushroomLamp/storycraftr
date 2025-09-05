@@ -1,0 +1,24 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        INCLUDE_TEX: ${INCLUDE_TEX:-false}
+    env_file:
+      - .env
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - STORYCRAFTR_CLI=${STORYCRAFTR_CLI:-storycraftr}
+      - BOOKS_CONTAINER_DIR=${BOOKS_CONTAINER_DIR:-/workspace/books}
+      - START_UI=${START_UI:-true}
+      - GRADIO_PORT=${GRADIO_PORT:-7860}
+      - GRADIO_HOST=0.0.0.0
+    working_dir: ${BOOKS_CONTAINER_DIR:-/workspace/books}
+    volumes:
+      - ${BOOKS_HOST_DIR:-./books}:${BOOKS_CONTAINER_DIR:-/workspace/books}
+    ports:
+      - "${GRADIO_PORT:-7860}:7860"
+    entrypoint: ["/usr/local/bin/entrypoint.sh"]
+    command: ["--help"]
+    tty: true
+    stdin_open: true

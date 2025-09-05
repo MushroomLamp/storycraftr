@@ -99,7 +99,7 @@ def upload_markdown_files_to_vector_store(
         return
 
     console.print(
-        f"[bold blue]Uploading all knowledge files from '{book_path}'...[/bold blue]"
+        f"[bold blue]Uploading book content from '{book_path}'...[/bold blue]"
     )
     md_files = load_markdown_files(book_path)
 
@@ -137,14 +137,30 @@ def load_markdown_files(book_path: str) -> list:
         list: A list of valid Markdown file paths.
     """
     console.print(
-        f"[bold blue]Loading all Markdown files from '{book_path}'...[/bold blue]"
+        f"[bold blue]Loading Markdown files from chapters/ outline/ worldbuilding/ in '{book_path}'...[/bold blue]"
     )
     md_files = glob.glob(os.path.join(book_path, "**", "*.md"), recursive=True)
 
-    # Filter files with more than 3 lines
+    allowed_top_dirs = {"chapters", "outline", "worldbuilding"}
+    excluded_filenames = {"iterate.md", "chat.md", "getting_started.md"}
+
     valid_md_files = []
     for file_path in md_files:
         try:
+            # Exclude any file inside the storycraftr docs folder
+            if os.sep + "storycraftr" + os.sep in file_path:
+                continue
+
+            # Ensure the file is under one of the allowed top-level folders
+            rel_path = os.path.relpath(file_path, book_path)
+            top_component = rel_path.split(os.sep)[0]
+            if top_component not in allowed_top_dirs:
+                continue
+
+            # Exclude explicitly undesired doc filenames
+            if os.path.basename(file_path) in excluded_filenames:
+                continue
+
             with open(file_path, "r", encoding="utf-8") as file:
                 if sum(1 for _ in file) > 3:
                     valid_md_files.append(file_path)
@@ -152,7 +168,7 @@ def load_markdown_files(book_path: str) -> list:
             console.print(f"[bold red]Error reading file: {file_path}[/bold red]")
 
     console.print(
-        f"[bold green]Loaded {len(valid_md_files)} Markdown files with more than 3 lines.[/bold green]"
+        f"[bold green]Loaded {len(valid_md_files)} Markdown files with more than 3 lines from allowed folders.[/bold green]"
     )
     return valid_md_files
 
@@ -232,20 +248,6 @@ def create_or_get_assistant(book_path: str):
         # Crear vector store para file_search
         console.print(f"[bold blue]Creating vector store for {name}...[/bold blue]")
         vector_store = vector_stores_api.create(name=f"{name} Docs")
-
-        # Cargar archivos de documentación desde la carpeta storycraftr dentro del book_path
-        docs_path = Path(book_path) / "storycraftr"
-        if docs_path.exists():
-            console.print(
-                f"[bold blue]Loading documentation from {docs_path}...[/bold blue]"
-            )
-            upload_markdown_files_to_vector_store(
-                vector_store.id, str(docs_path), client
-            )
-        else:
-            console.print(
-                f"[bold yellow]Documentation folder not found at {docs_path}[/bold yellow]"
-            )
 
         # Cargar archivos del libro
         console.print(f"[bold blue]Loading book files from {book_path}...[/bold blue]")
@@ -536,20 +538,6 @@ def update_agent_files(book_path: str, assistant):
                 f"[bold blue]Deleting {len(files.data)} old files...[/bold blue]"
             )
             delete_files_in_parallel(vector_stores_api, vector_store_id, files)
-
-        # Cargar archivos de documentación
-        docs_path = Path(book_path) / "storycraftr"
-        if docs_path.exists():
-            console.print(
-                f"[bold blue]Loading documentation from {docs_path}...[/bold blue]"
-            )
-            upload_markdown_files_to_vector_store(
-                vector_store_id, str(docs_path), client
-            )
-        else:
-            console.print(
-                f"[bold yellow]Documentation folder not found at {docs_path}[/bold yellow]"
-            )
 
         # Cargar archivos del libro
         console.print(f"[bold blue]Loading book files from {book_path}...[/bold blue]")

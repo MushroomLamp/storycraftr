@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+.build/
+.venv/
+venv/
+.env
+.env.*
+
+# Node/VSCode
+node_modules/
+dist/
+.build/
+.vscode/
+
+# Git
+.git
+.gitignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test and docs build output
+.coverage
+.pytest_cache/
+docs/_build/
+
+# Local data/config (keep out of images)
+.storycraftr/
+.papercraftr/
+books/

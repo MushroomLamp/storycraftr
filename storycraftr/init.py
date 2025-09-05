@@ -101,15 +101,7 @@ def init_structure_story(
     template_file.write_text(TEMPLATE_TEX, encoding="utf-8")
     console.print(f"[green]LaTeX template created: {template_file}[/green]")
 
-    # Download additional files
-    urls = [
-        "https://raw.githubusercontent.com/raestrada/storycraftr/refs/heads/main/docs/getting_started.md",
-        "https://raw.githubusercontent.com/raestrada/storycraftr/refs/heads/main/docs/iterate.md",
-        "https://raw.githubusercontent.com/raestrada/storycraftr/refs/heads/main/docs/chat.md",
-    ]
-    filenames = ["getting_started.md", "iterate.md", "chat.md"]
-    for url, filename in zip(urls, filenames):
-        download_file(url, Path(book_path) / "storycraftr", filename)
+    # No longer download StoryCraftr docs into the project; vector store should contain only book content
 
     create_or_get_assistant(book_path)
 
