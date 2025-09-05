@@ -356,7 +356,27 @@ def create_message(
                 return ""
             if isinstance(data.get("output_text"), str):
                 return data["output_text"]
-            texts = []
+            # Helper: deduplicate while preserving order
+            def _dedup_preserve_order(chunks: list[str]) -> list[str]:
+                seen: set[str] = set()
+                result: list[str] = []
+                for chunk in chunks:
+                    if not isinstance(chunk, str):
+                        continue
+                    s = chunk.strip()
+                    if not s:
+                        continue
+                    if s in seen:
+                        continue
+                    # Avoid immediate repeats differing only by whitespace
+                    if result and s == result[-1].strip():
+                        continue
+                    seen.add(s)
+                    result.append(chunk)
+                return result
+
+            output_text_chunks = []
+            text_value_chunks = []
             output = data.get("output")
             if isinstance(output, list):
                 for item in output:
@@ -369,13 +389,20 @@ def create_message(
                                 continue
                             # Example structure: {"type": "output_text", "text": "..."}
                             if c.get("type") == "output_text" and isinstance(c.get("text"), str):
-                                texts.append(c.get("text"))
+                                output_text_chunks.append(c.get("text"))
                             # Older structure: {"type": "text", "text": {"value": "..."}}
                             elif c.get("type") == "text":
                                 inner = c.get("text")
                                 if isinstance(inner, dict) and isinstance(inner.get("value"), str):
-                                    texts.append(inner.get("value"))
-            return "\n".join(texts) if texts else ""
+                                    text_value_chunks.append(inner.get("value"))
+            # Prefer output_text chunks if present; else fall back to text.value
+            if output_text_chunks:
+                deduped = _dedup_preserve_order(output_text_chunks)
+                return "\n".join(deduped)
+            if text_value_chunks:
+                deduped = _dedup_preserve_order(text_value_chunks)
+                return "\n".join(deduped)
+            return ""
 
         # Compose base instruction + user input
         base_instructions = assistant.instructions if hasattr(assistant, "instructions") else ""
@@ -424,16 +451,32 @@ def create_message(
                 next_prompt = "THIS IS THE FINAL PART. PLEASE COMPLETE YOUR RESPONSE AND END WITH 'END_OF_RESPONSE'."
                 console.print("[bold yellow]⚠ This is the final part. The response should be completed and include END_OF_RESPONSE.[/bold yellow]")
 
-            conversation = (
-                f"{prompt_with_hash}\n\nAssistant so far:\n{response_text}\n\n{next_prompt}"
-            )
-            response = _create_response(conversation)
-            new_response = _extract_text(response)
+            # Ask the model to continue within the same conversation.
+            # Do not resend the prior assistant text to avoid echoing/cumulative outputs.
+            response = _create_response(next_prompt)
+            new_output = _extract_text(response)
+
+            # If the API returns cumulative output (entire transcript), extract only the new delta.
+            if isinstance(new_output, str) and new_output.startswith(response_text):
+                new_part = new_output[len(response_text):]
+            else:
+                # Fallback: try to trim the longest common prefix to reduce duplication.
+                try:
+                    from difflib import SequenceMatcher  # local import to avoid global dependency
+                    matcher = SequenceMatcher(None, response_text, new_output or "")
+                    match = matcher.find_longest_match(0, len(response_text), 0, len(new_output or ""))
+                    if match and match.a == 0 and match.size > 0:
+                        new_part = (new_output or "")[match.size:]
+                    else:
+                        new_part = new_output or ""
+                except Exception:
+                    new_part = new_output or ""
 
             if config.multiple_answer and not force_single_answer:
                 console.print(f"[bold green]✓ Part {iter + 1} of 3 received[/bold green]")
 
-            response_text += "\n" + new_response
+            if new_part:
+                response_text += "\n" + new_part
 
         if internal_progress:
             progress.stop()
