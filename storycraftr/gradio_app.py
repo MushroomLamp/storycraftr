@@ -18,6 +18,62 @@ CLI = os.getenv("STORYCRAFTR_CLI", "storycraftr")
 
 # ----------------------------- Helpers ---------------------------------
 
+# Contextual help for commands shown in UI
+OUTLINE_HELP: dict[str, str] = {
+    "general-outline": (
+        "**general-outline**: Generate a high-level plot overview for the whole book.\n\n"
+        "- Output: `outline/general_outline.md`\n"
+        "- Use the Prompt to describe scope/tone/themes.\n\n"
+        "Example CLI:```bash\nstorycraftr outline general-outline \"Your overall story premise...\"\n```"
+    ),
+    "character-summary": (
+        "**character-summary**: Summarize main characters, roles, arcs, and relationships.\n\n"
+        "- Output: `outline/character_summary.md`\n"
+        "- Use the Prompt to list characters or desired focus.\n\n"
+        "Example CLI:```bash\nstorycraftr outline character-summary \"Summarize Zevid and the ruling families...\"\n```"
+    ),
+    "plot-points": (
+        "**plot-points**: Identify key beats/events across the narrative.\n\n"
+        "- Output: `outline/plot_points.md`\n"
+        "- Use the Prompt to specify structure (acts/arcs) if desired.\n\n"
+        "Example CLI:```bash\nstorycraftr outline plot-points \"List turning points and midpoint reversal...\"\n```"
+    ),
+    "chapter-synopsis": (
+        "**chapter-synopsis**: Produce chapter-by-chapter summaries with goals, stakes, and outcomes.\n\n"
+        "- Output: `outline/chapter_synopsis.md`\n"
+        "- Use the Prompt to guide length/number of chapters.\n\n"
+        "Example CLI:```bash\nstorycraftr outline chapter-synopsis \"Outline 20 chapters for a dystopian heist...\"\n```"
+    ),
+}
+
+WORLD_HELP: dict[str, str] = {
+    "history": (
+        "**history**: Describe historical timelines, conflicts, and milestones of the setting.\n\n"
+        "- Output: `worldbuilding/history.md`\n\n"
+        "Example CLI:```bash\nstorycraftr worldbuilding history \"From pre-collapse to present factions...\"\n```"
+    ),
+    "geography": (
+        "**geography**: Define regions, climates, resources, and strategic locations.\n\n"
+        "- Output: `worldbuilding/geography.md`\n\n"
+        "Example CLI:```bash\nstorycraftr worldbuilding geography \"Key city-states, wastelands, and trade routes...\"\n```"
+    ),
+    "culture": (
+        "**culture**: Explore customs, norms, rituals, power structures, and daily life.\n\n"
+        "- Output: `worldbuilding/culture.md`\n\n"
+        "Example CLI:```bash\nstorycraftr worldbuilding culture \"Elite rites vs. worker traditions...\"\n```"
+    ),
+    "technology": (
+        "**technology**: Explain tools, capabilities, and constraints; how tech shapes society.\n\n"
+        "- Output: `worldbuilding/technology.md`\n\n"
+        "Example CLI:```bash\nstorycraftr worldbuilding technology \"Bio/nano interfaces, augmentation risks...\"\n```"
+    ),
+    "magic-system": (
+        "**magic-system**: Define rules/limitations of the system (science-as-magic or magic).\n\n"
+        "- Output: `worldbuilding/magic_system.md`\n\n"
+        "Example CLI:```bash\nstorycraftr worldbuilding magic-system \"Costs, sources, and boundaries of power...\"\n```"
+    ),
+}
+
 def run_cli(args: List[str], cwd: str | None = None) -> Tuple[str, int]:
     try:
         console.print(f"[bold blue]Running:[/bold blue] {CLI} {' '.join(args)} cwd={cwd or os.getcwd()}")
@@ -373,6 +429,15 @@ def action_save_chapter(current_book: str, rel_path: str, content: str) -> str:
     return action_save_file(current_book, rel_path, content)
 
 
+# Reload assistant/vector store files for the current book
+def action_reload_files(current_book: str) -> str:
+    if not current_book:
+        return "Select a book first."
+    args = ["reload-files", "--book-path", current_book]
+    out, _ = run_cli(args, cwd=current_book)
+    return out or "Synced."
+
+
 # ----------------------------- UI Layout ---------------------------------
 
 def build_app() -> gr.Blocks:
@@ -491,6 +556,7 @@ def build_app() -> gr.Blocks:
                         files_dropdown = gr.Dropdown(choices=[], label="Files", interactive=True, info="Common text/markdown/json/tex files in the project.")
                         load_file_btn = gr.Button("Load File")
                         save_file_btn = gr.Button("Save File")
+                        sync_btn = gr.Button("Sync Assistant Files")
                     with gr.Column(scale=2):
                         chapter_editor = gr.Code(label="Chapter Editor", language="markdown")
                         file_editor = gr.Code(label="Editor", language="markdown")
@@ -511,29 +577,40 @@ def build_app() -> gr.Blocks:
                 save_chapter_btn.click(action_save_chapter, inputs=[current_book_path, chapters_dropdown, chapter_editor], outputs=file_msg)
                 load_file_btn.click(action_load_file, inputs=[current_book_path, files_dropdown], outputs=file_editor)
                 save_file_btn.click(action_save_file, inputs=[current_book_path, files_dropdown, file_editor], outputs=file_msg)
+                sync_btn.click(action_reload_files, inputs=current_book_path, outputs=file_msg)
 
                 # Command sections
                 with gr.Tabs():
                     with gr.Tab("Outline"):
                         gr.Markdown("Generate high-level structure: general outline, character summaries, plot points, chapter synopsis.")
+                        # Helper updater
+                        def get_outline_help(cmd: str) -> str:
+                            return OUTLINE_HELP.get(cmd, "")
                         with gr.Row():
                             with gr.Column():
                                 outline_cmd = gr.Dropdown(choices=["general-outline", "character-summary", "plot-points", "chapter-synopsis"], value="general-outline", label="Outline Command", info="Choose which outline action to run.")
                                 outline_prompt = gr.Textbox(label="Prompt", lines=4, info="Describe what you want to generate.")
                                 run_outline = gr.Button("Run Outline")
                             with gr.Column():
+                                outline_help = gr.Markdown(value=OUTLINE_HELP["general-outline"], label="Help")
                                 outline_out = gr.Markdown(label="Output")
+                        outline_cmd.change(get_outline_help, inputs=outline_cmd, outputs=outline_help)
                         run_outline.click(action_outline, inputs=[outline_cmd, current_book_path, outline_prompt], outputs=outline_out)
 
                     with gr.Tab("Worldbuilding"):
                         gr.Markdown("Create history, geography, culture, technology, magic/science system.")
+                        # Helper updater
+                        def get_world_help(cmd: str) -> str:
+                            return WORLD_HELP.get(cmd, "")
                         with gr.Row():
                             with gr.Column():
                                 world_cmd = gr.Dropdown(choices=["history", "geography", "culture", "technology", "magic-system"], value="history", label="Worldbuilding Command", info="Choose a worldbuilding area.")
                                 world_prompt = gr.Textbox(label="Prompt", lines=4, info="Describe what to generate.")
                                 run_world = gr.Button("Run Worldbuilding")
                             with gr.Column():
+                                world_help = gr.Markdown(value=WORLD_HELP["history"], label="Help")
                                 world_out = gr.Markdown(label="Output")
+                        world_cmd.change(get_world_help, inputs=world_cmd, outputs=world_help)
                         run_world.click(action_worldbuilding, inputs=[world_cmd, current_book_path, world_prompt], outputs=world_out)
 
                     with gr.Tab("Chapters"):
@@ -548,6 +625,21 @@ def build_app() -> gr.Blocks:
                                 back_cover_prompt = gr.Textbox(label="Back Cover Prompt", lines=2, info="Describe the back-cover text to generate.")
                                 btn_back_cover = gr.Button("Generate Back Cover")
                             with gr.Column():
+                                chapters_help = gr.Markdown(
+                                    label="Help",
+                                    value=(
+                                        "**Chapters**: Generate or refine chapter content.\n\n"
+                                        "- `chapter N`: Writes to `chapters/chapter-N.md`. Use the prompt to specify scene goals, POV, tone, and constraints.\n"
+                                        "- `cover`: Writes to `chapters/cover.md`. Provide book title, themes, and hook.\n"
+                                        "- `back-cover`: Writes to `chapters/back-cover.md`. Provide a short blurb and stakes.\n\n"
+                                        "Examples:```bash\n"
+                                        "storycraftr chapters chapter 1 \"Open with Zevid infiltrating the tower...\"\n"
+                                        "storycraftr chapters cover \"Generate a compelling jacket copy...\"\n"
+                                        "storycraftr chapters back-cover \"Short, punchy blurb emphasizing stakes...\"\n"
+                                        "```\n"
+                                        "See `docs/getting_started.md` for end-to-end flow."
+                                    ),
+                                )
                                 ch_out = gr.Markdown(label="Output")
                                 cover_out = gr.Markdown(label="Cover Output")
                                 back_cover_out = gr.Markdown(label="Back Cover Output")
@@ -566,6 +658,19 @@ def build_app() -> gr.Blocks:
                                 new_name = gr.Textbox(label="New Name")
                                 btn_fix_name = gr.Button("Fix Character Name Across Chapters")
                             with gr.Column():
+                                names_help = gr.Markdown(
+                                    label="Help",
+                                    value=(
+                                        "**Names**: Check and fix character names across chapters.\n\n"
+                                        "- `check-names [prompt?]`: Scans chapters for inconsistent names and suggests fixes.\n"
+                                        "- `fix-name <original> <new>`: Renames across all chapters.\n\n"
+                                        "Examples:```bash\n"
+                                        "storycraftr iterate check-names \"Ensure naming consistency...\"\n"
+                                        "storycraftr iterate fix-name Zevid Rhaedin\n"
+                                        "```\n"
+                                        "See `docs/iterate.md`."
+                                    ),
+                                )
                                 refine_names_out = gr.Markdown(label="Names Output")
                         btn_check_names.click(action_iterate_check_names, inputs=[current_book_path, names_prompt], outputs=refine_names_out)
                         btn_fix_name.click(action_iterate_fix_name, inputs=[current_book_path, orig_name, new_name], outputs=refine_names_out)
@@ -577,6 +682,15 @@ def build_app() -> gr.Blocks:
                                 story_context = gr.Textbox(label="Story Context", lines=3)
                                 btn_refine_motivation = gr.Button("Refine Motivation")
                             with gr.Column():
+                                motivation_help = gr.Markdown(
+                                    label="Help",
+                                    value=(
+                                        "**Refine Motivation**: Deepen and align a character's motivations.\n\n"
+                                        "- Provide the character's name and story context (conflicts, goals).\n\n"
+                                        "Example:```bash\nstorycraftr iterate refine-motivation Zevid \"Clarify fear of losing control...\"\n```\n"
+                                        "See `docs/iterate.md`."
+                                    ),
+                                )
                                 motivation_out = gr.Markdown(label="Motivation Output")
                         btn_refine_motivation.click(action_iterate_refine_motivation, inputs=[current_book_path, character_name, story_context], outputs=motivation_out)
 
@@ -586,6 +700,15 @@ def build_app() -> gr.Blocks:
                                 argument = gr.Textbox(label="Argument", lines=2)
                                 btn_strengthen = gr.Button("Strengthen Argument")
                             with gr.Column():
+                                argument_help = gr.Markdown(
+                                    label="Help",
+                                    value=(
+                                        "**Strengthen Argument**: Clarify and reinforce the core thesis/themes.\n\n"
+                                        "- Provide a concise argument the book should consistently convey.\n\n"
+                                        "Example:```bash\nstorycraftr iterate strengthen-argument \"Rebellion vs. control must remain central...\"\n```\n"
+                                        "See `docs/iterate.md`."
+                                    ),
+                                )
                                 argument_out = gr.Markdown(label="Argument Output")
                         btn_strengthen.click(action_iterate_strengthen_argument, inputs=[current_book_path, argument], outputs=argument_out)
 
@@ -598,6 +721,21 @@ def build_app() -> gr.Blocks:
                                 btn_flashback = gr.Button("Insert Flashback Chapter")
                                 btn_split = gr.Button("Split Chapter (Insert)")
                             with gr.Column():
+                                structure_help = gr.Markdown(
+                                    label="Help",
+                                    value=(
+                                        "**Structure**: Insert or split chapters and adjust numbering.\n\n"
+                                        "- `insert-chapter <position> <prompt>`: Inserts before position; renumbers following chapters.\n"
+                                        "- `add-flashback <position> <prompt>`: Inserts a flashback scene at position.\n"
+                                        "- `split-chapter <position> <prompt>`: Splits chapter and renumbers.\n\n"
+                                        "Examples:```bash\n"
+                                        "storycraftr iterate insert-chapter 2 \"Bridge scene to set stakes...\"\n"
+                                        "storycraftr iterate add-flashback 3 \"Reveal hidden alliance...\"\n"
+                                        "storycraftr iterate split-chapter 3 \"Split into confrontation and aftermath...\"\n"
+                                        "```\n"
+                                        "See `docs/iterate.md`."
+                                    ),
+                                )
                                 insert_out = gr.Markdown(label="Insert Output")
                         btn_insert.click(action_iterate_insert_chapter, inputs=[current_book_path, insert_pos, insert_prompt], outputs=insert_out)
                         btn_flashback.click(action_iterate_add_flashback, inputs=[current_book_path, insert_pos, insert_prompt], outputs=insert_out)
@@ -609,6 +747,15 @@ def build_app() -> gr.Blocks:
                                 consistency_prompt = gr.Textbox(label="Prompt", lines=3, placeholder="e.g., Check plot consistency across chapters")
                                 btn_consistency = gr.Button("Check Consistency")
                             with gr.Column():
+                                consistency_help = gr.Markdown(
+                                    label="Help",
+                                    value=(
+                                        "**Check Consistency**: Review cross-file consistency for arcs, names, and world rules.\n\n"
+                                        "- Provide a prompt describing what to verify (arcs, motifs, timeline).\n\n"
+                                        "Example:```bash\nstorycraftr iterate check-consistency \"Ensure motivations align across climax...\"\n```\n"
+                                        "See `docs/iterate.md` and `docs/advanced.md` (reload-files)."
+                                    ),
+                                )
                                 consistency_out = gr.Markdown(label="Consistency Output")
                         btn_consistency.click(action_iterate_check_consistency, inputs=[current_book_path, consistency_prompt], outputs=consistency_out)
 
@@ -620,6 +767,18 @@ def build_app() -> gr.Blocks:
                                 translate = gr.Textbox(label="Translate (optional)", info="Optional translation language (e.g., es). Leave empty for none.")
                                 btn_pdf = gr.Button("Publish PDF")
                             with gr.Column():
+                                pub_help = gr.Markdown(
+                                    label="Help",
+                                    value=(
+                                        "**Publish PDF**: Render your book to PDF via Pandoc + XeLaTeX.\n\n"
+                                        "- Install Pandoc and XeLaTeX (see `docs/getting_started.md`).\n"
+                                        "- Use primary language, optionally translate output language.\n\n"
+                                        "Examples:```bash\n"
+                                        "storycraftr publish pdf en\n"
+                                        "storycraftr publish pdf en --translate es\n"
+                                        "```"
+                                    ),
+                                )
                                 pub_out = gr.Markdown(label="Publish Output")
                         btn_pdf.click(action_publish_pdf, inputs=[lang, translate, current_book_path], outputs=pub_out)
 
