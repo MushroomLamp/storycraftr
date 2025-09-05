@@ -31,7 +31,7 @@ def generate_pdf_file(book_path: str, language: str, template: str, output: str)
         return None
 
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name=assistant.name)
 
     # Generate LaTeX content
     response = create_message(

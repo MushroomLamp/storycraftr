@@ -170,3 +170,59 @@ def file_has_more_than_three_lines(file_path: str) -> bool:
         console.print(f"[red bold]Error:[/red bold] File not found: {file_path}")
         return False
     return False
+
+
+# ---------------- Conversation persistence (per book) ----------------
+
+def _conversation_state_path(book_path: str) -> Path:
+    """
+    Return the path to the conversation state file for a book.
+
+    We persist a single default conversation id per book. This aligns with
+    StoryCraftr's single-assistant-per-book design (assistant name == book folder).
+    """
+    return Path(book_path) / "conversations.json"
+
+
+def load_conversation_id(book_path: str, agent_name: str | None = None) -> str | None:
+    """
+    Load the persisted conversation id for a book, if present.
+    """
+    try:
+        path = _conversation_state_path(book_path)
+        if not path.exists():
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        # Expect namespaced by agent name
+        if isinstance(data, dict):
+            if agent_name and isinstance(data.get(agent_name), str):
+                return data[agent_name]
+        return None
+    except Exception:
+        return None
+
+
+def save_conversation_id(book_path: str, conversation_id: str, agent_name: str | None = None) -> None:
+    """
+    Persist the conversation id for a book.
+    """
+    try:
+        path = _conversation_state_path(book_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data: dict = {}
+        if path.exists():
+            try:
+                existing = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(existing, dict):
+                    data = existing
+            except Exception:
+                data = {}
+        if agent_name:
+            data[str(agent_name)] = str(conversation_id)
+        else:
+            # If no agent name provided, do nothing to avoid ambiguous persistence
+            return
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        # Best-effort persistence; ignore errors silently
+        pass

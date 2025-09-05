@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.progress import Progress
 from storycraftr.prompts.story.core import FORMAT_OUTPUT
 from storycraftr.utils.core import load_book_config, generate_prompt_with_hash
+from storycraftr.utils.core import load_conversation_id, save_conversation_id
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
@@ -451,7 +452,7 @@ def create_message(
         raise
 
 
-def get_thread(book_path: str):
+def get_thread(book_path: str, agent_name: str | None = None):
     """
     Create a conversation compatible with the Responses API.
 
@@ -462,7 +463,22 @@ def get_thread(book_path: str):
         object: An object with an "id" attribute starting with 'conv_'.
     """
     client = initialize_openai_client(book_path)
+
+    # Try to reuse a persisted conversation id for this book
+    existing_id = load_conversation_id(book_path, agent_name)
+    if existing_id:
+        class ConversationWrapper:
+            def __init__(self, id: str):
+                self.id = id
+        return ConversationWrapper(existing_id)
+
+    # Otherwise create a new conversation and persist it
     conversation = client.conversations.create()
+    try:
+        if agent_name:
+            save_conversation_id(book_path, conversation.id, agent_name)
+    except Exception:
+        pass
     class ConversationWrapper:
         def __init__(self, id: str):
             self.id = id
@@ -537,6 +553,7 @@ def process_chapters(
     prompt_template: str,
     task_description: str,
     file_suffix: str,
+    agent_name: str | None = None,
     **prompt_kwargs,
 ):
     """
@@ -589,7 +606,7 @@ def process_chapters(
             prompt = prompt_template.format(**prompt_kwargs)
 
             assistant = create_or_get_assistant(book_path)
-            thread = get_thread(book_path)
+            thread = get_thread(book_path, agent_name=agent_name)
 
             progress.reset(task_openai)
             refined_text = create_message(

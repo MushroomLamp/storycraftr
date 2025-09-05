@@ -39,7 +39,7 @@ def generate_general_outline(book_path: str, prompt: str) -> str:
     # Load the book configuration and setup
     config = load_book_config(book_path)
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="general-outline")
     file_path = Path(book_path) / "outline" / "general_outline.md"
     book_name = config.book_name
 
@@ -92,7 +92,7 @@ def generate_character_summary(book_path: str, prompt: str) -> str:
 
     config = load_book_config(book_path)
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="character-summary")
     file_path = Path(book_path) / "outline" / "character_summary.md"
     book_name = config.book_name
 
@@ -145,7 +145,7 @@ def generate_plot_points(book_path: str, prompt: str) -> str:
 
     config = load_book_config(book_path)
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="plot-points")
     file_path = Path(book_path) / "outline" / "plot_points.md"
     book_name = config.book_name
 
@@ -195,7 +195,7 @@ def generate_chapter_synopsis(book_path: str, prompt: str) -> str:
 
     config = load_book_config(book_path)
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="chapter-synopsis")
     file_path = Path(book_path) / "outline" / "chapter_synopsis.md"
     book_name = config.book_name
 

@@ -41,7 +41,7 @@ def _generate_section(
 
     config = load_book_config(book_path)
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name=f"section:{section_name}")
     file_path = os.path.join(book_path, "sections", f"{section_name}.md")
     paper_title = config.book_name
 

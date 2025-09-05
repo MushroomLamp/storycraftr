@@ -36,7 +36,7 @@ def add_reference(book_path: str, prompt: str) -> str:
     # Load configuration and setup
     config = load_book_config(book_path)
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="add-reference")
     file_path = os.path.join(book_path, "references", "references.md")
     paper_title = config.book_name
 
@@ -77,7 +77,7 @@ def format_references(book_path: str, prompt: str) -> str:
     # Load configuration and setup
     config = load_book_config(book_path)
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="format-references")
     file_path = os.path.join(book_path, "references", "references.md")
     paper_title = config.book_name
 
@@ -118,7 +118,7 @@ def check_citations(book_path: str, prompt: str) -> str:
     # Load configuration and setup
     config = load_book_config(book_path)
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="check-citations")
     file_path = os.path.join(book_path, "reviews", "citation_check.md")
     paper_title = config.book_name
 
@@ -160,7 +160,7 @@ def generate_citation(book_path: str, prompt: str, citation_format: str) -> str:
     # Load configuration and setup
     config = load_book_config(book_path)
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="generate-citation")
     file_path = os.path.join(book_path, "references", "references.md")
     paper_title = config.book_name
 
@@ -203,7 +203,7 @@ def generate_bibtex(book_path: str, bibtex_style: str) -> str:
     # Load configuration and setup
     config = load_book_config(book_path)
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="generate-bibtex")
     file_path = os.path.join(book_path, "references", "references.bib")
     paper_title = config.book_name
 

@@ -1,0 +1,37 @@
+- date: September 05, 2025
+  original_prompt: '
+
+    Write the book on lang "en".
+
+    Return in markdown format, without using code block syntax (no triple backticks
+    or code fences).
+
+    Do not add your comments ath thend.
+
+    You are None writing a new engaging book.
+
+
+
+    Please provide the response in exactly 3 parts to avoid output token limitations.
+    ONLY in the final (third) part, indicate ''END_OF_RESPONSE'' when the response
+    is complete. Continue providing the next part of the response when you receive
+    the prompt ''next''.
+
+
+
+    Create a general outline for the book Melkor based on this prompt: generate an
+    outline for a single book, telling the story of Melkor creating the Orcs. it should
+    follow the lore of the lotr universe, but if there are gaps in the lore then creative
+    freedom is allowed..
+
+    Focus on general outline, then I will request help on plot-points, character-summary
+    and chapt-synopsis.
+
+
+
+    Here is the existing content to improve:
+
+    # General Outline
+
+
+    This is the general outline of the book.'

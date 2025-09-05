@@ -37,7 +37,7 @@ def generate_chapter(book_path: str, chapter_number: int, prompt: str) -> str:
 
     language = load_book_config(book_path).primary_language
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="chapter")
 
     chapter_file = f"chapter-{chapter_number}.md"
     file_path = Path(book_path) / "chapters" / chapter_file
@@ -93,7 +93,7 @@ def generate_cover(book_path: str, prompt: str) -> str:
     config = load_book_config(book_path)
     language = config.primary_language
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="cover")
 
     prompt_content = COVER_PROMPT.format(
         title=config.book_name,
@@ -131,7 +131,7 @@ def generate_back_cover(book_path: str, prompt: str) -> str:
     config = load_book_config(book_path)
     language = config.primary_language
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="back-cover")
 
     prompt_content = BACK_COVER_PROMPT.format(
         title=config.book_name,
@@ -171,7 +171,7 @@ def generate_epilogue(book_path: str, prompt: str) -> str:
 
     language = load_book_config(book_path).primary_language
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="epilogue")
 
     file_path = Path(book_path) / "chapters" / "epilogue.md"
 

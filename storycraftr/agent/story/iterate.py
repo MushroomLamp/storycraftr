@@ -43,6 +43,7 @@ def iterate_check_names(book_path: str):
         prompt_template=CHECK_NAMES_PROMPT,
         task_description="Checking name consistency...",
         file_suffix="Name Consistency Check",
+        agent_name="check-names",
     )
     return corrections
 
@@ -64,6 +65,7 @@ def fix_name_in_chapters(book_path: str, original_name: str, new_name: str):
         file_suffix="Character Name Update",
         original_name=original_name,
         new_name=new_name,
+        agent_name="fix-name",
     )
 
 
@@ -86,6 +88,7 @@ def refine_character_motivation(
         file_suffix="Character Motivation Refinement",
         character_name=character_name,
         story_context=story_context,
+        agent_name="refine-motivation",
     )
 
 
@@ -104,6 +107,7 @@ def strengthen_core_argument(book_path: str, argument: str):
         task_description="Strengthening core argument across chapters...",
         file_suffix="Core Argument Strengthening",
         argument=argument,
+        agent_name="strengthen-argument",
     )
 
 
@@ -121,6 +125,7 @@ def check_consistency_across(book_path: str, consistency_type: str):
         prompt_template=CHECK_CHAPTER_CONSISTENCY_PROMPT,
         task_description=f"Checking {consistency_type} consistency across chapters...",
         file_suffix=f"{consistency_type} Consistency Check",
+        agent_name="check-consistency",
         consistency_type=consistency_type,
     )
 
@@ -184,7 +189,7 @@ def insert_new_chapter(
 
         # Get or create the assistant and thread
         assistant = create_or_get_assistant(book_path)
-        thread = get_thread(book_path)
+        thread = get_thread(book_path, agent_name=assistant.name)
 
         # Determine prompt type (flashback or regular chapter)
         prompt_text = (
@@ -272,7 +277,7 @@ def rewrite_surrounding_chapter(
         task_chapters (Task): Task ID for tracking chapter rewrites.
     """
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name=assistant.name)
 
     prompt = (
         REWRITE_SURROUNDING_CHAPTERS_FOR_FLASHBACK_PROMPT

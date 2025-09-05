@@ -1,0 +1,14 @@
+{
+    "book_path": "/workspace/books/Melkor",
+    "book_name": "Melkor",
+    "primary_language": "en",
+    "alternate_languages": [],
+    "default_author": "Author Name",
+    "genre": "fantasy",
+    "license": "CC BY-NC-SA",
+    "reference_author": "None",
+    "cli_name": "storycraftr",
+    "openai_url": "https://api.openai.com/v1",
+    "openai_model": "gpt-4o",
+    "multiple_answer": true
+}

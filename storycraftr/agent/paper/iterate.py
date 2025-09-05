@@ -25,7 +25,7 @@ def reinforce_ideas(book_path: str, prompt: str) -> str:
 
     config = load_book_config(book_path)
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name=assistant.name)
     paper_title = config.book_name
 
     content = REINFORCE_IDEAS_PROMPT.format(prompt=prompt, paper_title=paper_title)
@@ -50,7 +50,7 @@ def improve_clarity(book_path: str, prompt: str) -> str:
 
     config = load_book_config(book_path)
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name=assistant.name)
     paper_title = config.book_name
 
     content = IMPROVE_CLARITY_PROMPT.format(prompt=prompt, paper_title=paper_title)

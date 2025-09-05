@@ -137,7 +137,7 @@ def consolidate_book_md(
 
     # Create or get the assistant and thread for translation (if needed)
     assistant = create_or_get_assistant(book_path)
-    thread = get_thread(book_path)
+    thread = get_thread(book_path, agent_name="consolidate-book")
 
     # Collect chapters to process
     files_to_process = []
@@ -300,7 +300,7 @@ def consolidate_paper_md(
     thread = None
     if translate:
         assistant = create_or_get_assistant(book_path)
-        thread = get_thread(book_path)
+        thread = get_thread(book_path, agent_name="translate-book")
 
     # Add each section in order
     for section in section_order:
