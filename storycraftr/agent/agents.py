@@ -21,6 +21,27 @@ load_dotenv()
 console = Console()
 DEBUG = str(os.getenv("STORYCRAFTR_DEBUG", "")).lower() in ("1", "true", "yes", "on", "debug")
 
+# Store the most recent activity summaries so the UI can surface them without changing
+# the signature of generation functions. Keys by thread id and by book path for convenience.
+LAST_ACTIVITY_BY_THREAD: Dict[str, str] = {}
+LAST_ACTIVITY_BY_BOOK: Dict[str, str] = {}
+
+
+def get_last_activity_for_book(book_path: str) -> str:
+    """Return a concise markdown bullet list describing the last model reasoning/tool calls for the book."""
+    try:
+        return LAST_ACTIVITY_BY_BOOK.get(str(book_path), "") or ""
+    except Exception:
+        return ""
+
+
+def clear_last_activity_for_book(book_path: str) -> None:
+    """Clear stored activity for the book (optional utility)."""
+    try:
+        LAST_ACTIVITY_BY_BOOK.pop(str(book_path), None)
+    except Exception:
+        pass
+
 
 def _debug(msg: str):
     if DEBUG:
@@ -830,8 +851,9 @@ def create_message(
                         calls.append({"name": name, "arguments": args, "call_id": call_id})
             return calls
 
-        # Track applied edits for debug summary
+        # Track applied edits and activity for UI summary
         tool_edit_invocations = {"fs_apply_text_edits": 0, "changes": 0}
+        activity_lines: List[str] = []
 
         def _resolve_tools_loop(input_items, last_response):
             response_obj = last_response
@@ -877,6 +899,14 @@ def create_message(
                         if DEBUG:
                             args_preview = json.dumps(args)[:300]
                             _debug(f"Calling tool {name} with args {args_preview}...")
+                        # Log the tool call succinctly for UI
+                        try:
+                            args_preview_ui = json.dumps(args)
+                            if len(args_preview_ui) > 200:
+                                args_preview_ui = args_preview_ui[:200] + "..."
+                            activity_lines.append(f"tool: {name} args={args_preview_ui}")
+                        except Exception:
+                            pass
                         if name == "fs_read_text":
                             result = _read_text_file(book_path, args.get("path", ""))
                         elif name == "fs_apply_text_edits":
@@ -921,6 +951,68 @@ def create_message(
         response = _create_response(input_items)
         response = _resolve_tools_loop(input_items, response)
         response_text = _extract_text(response)
+
+        # Build activity summary from the final response object
+        def _to_dict(obj) -> Dict[str, Any]:
+            if isinstance(obj, dict):
+                return obj
+            for to_dict in (getattr(obj, "model_dump", None), getattr(obj, "to_dict", None)):
+                try:
+                    if callable(to_dict):
+                        return to_dict()
+                except Exception:
+                    pass
+            return {}
+
+        try:
+            data = _to_dict(response)
+            # Reasoning summary (if present)
+            reasoning = data.get("reasoning") or {}
+            reason_summary = reasoning.get("summary")
+            if isinstance(reason_summary, str) and reason_summary.strip():
+                activity_lines.insert(0, f"reasoning: {reason_summary.strip()}")
+            # File search calls and function calls in output
+            output_items = data.get("output") or []
+            for item in output_items:
+                try:
+                    if not isinstance(item, dict):
+                        continue
+                    t = item.get("type")
+                    if t == "file_search_call":
+                        queries = item.get("queries") or []
+                        if queries:
+                            activity_lines.append("file_search: " + ", ".join([str(q) for q in queries]))
+                    elif t in ("function_call", "tool_use"):
+                        nm = item.get("name")
+                        args = item.get("arguments")
+                        if isinstance(args, str):
+                            argsp = args
+                        else:
+                            argsp = json.dumps(args or {})
+                        if len(argsp) > 200:
+                            argsp = argsp[:200] + "..."
+                        activity_lines.append(f"model_call: {nm} args={argsp}")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Append edit summary if applicable
+        try:
+            if tool_edit_invocations["fs_apply_text_edits"] > 0:
+                activity_lines.append(
+                    f"applied_edits: {tool_edit_invocations['fs_apply_text_edits']} call(s), changes={tool_edit_invocations['changes']}"
+                )
+        except Exception:
+            pass
+
+        activity_md = "\n".join(f"- {line}" for line in activity_lines) if activity_lines else ""
+        # Persist for UI retrieval
+        try:
+            LAST_ACTIVITY_BY_THREAD[str(thread_id)] = activity_md
+            LAST_ACTIVITY_BY_BOOK[str(book_path)] = activity_md
+        except Exception:
+            pass
         if DEBUG:
             _debug(f"Initial response text len={len(response_text)}")
 

@@ -11,7 +11,7 @@ from rich.console import Console
 # Direct imports to call the application logic without shelling out to the CLI
 from storycraftr.init import init_structure_story
 from storycraftr.utils.core import load_book_config
-from storycraftr.agent.agents import create_or_get_assistant, update_agent_files
+from storycraftr.agent.agents import create_or_get_assistant, update_agent_files, get_last_activity_for_book
 from storycraftr.utils.pdf import to_pdf
 
 # Story agent functions
@@ -250,6 +250,18 @@ def action_new_project(project_name: str, behavior_text: str, primary_language: 
         return f"Initialization error: {e}", ""
 
 
+def _append_activity(current_book: str, text: str) -> str:
+    if not current_book:
+        return text
+    try:
+        act = get_last_activity_for_book(current_book)
+        if act:
+            return (text or "Done.") + "\n\n---\nRecent activity:\n" + act
+    except Exception:
+        pass
+    return text
+
+
 def action_outline(cmd: str, current_book: str, prompt: str) -> str:
     if not current_book:
         return "Select a book first."
@@ -257,13 +269,13 @@ def action_outline(cmd: str, current_book: str, prompt: str) -> str:
         return "Provide a prompt."
     try:
         if cmd == "general-outline":
-            return generate_general_outline(current_book, prompt) or "Done."
+            return _append_activity(current_book, generate_general_outline(current_book, prompt) or "Done.")
         if cmd == "character-summary":
-            return generate_character_summary(current_book, prompt) or "Done."
+            return _append_activity(current_book, generate_character_summary(current_book, prompt) or "Done.")
         if cmd == "plot-points":
-            return generate_plot_points(current_book, prompt) or "Done."
+            return _append_activity(current_book, generate_plot_points(current_book, prompt) or "Done.")
         if cmd == "chapter-synopsis":
-            return generate_chapter_synopsis(current_book, prompt) or "Done."
+            return _append_activity(current_book, generate_chapter_synopsis(current_book, prompt) or "Done.")
         return f"Unknown outline command: {cmd}"
     except Exception as e:
         return f"Error: {e}"
@@ -276,15 +288,15 @@ def action_worldbuilding(cmd: str, current_book: str, prompt: str) -> str:
         return "Provide a prompt."
     try:
         if cmd == "history":
-            return generate_history(current_book, prompt) or "Done."
+            return _append_activity(current_book, generate_history(current_book, prompt) or "Done.")
         if cmd == "geography":
-            return generate_geography(current_book, prompt) or "Done."
+            return _append_activity(current_book, generate_geography(current_book, prompt) or "Done.")
         if cmd == "culture":
-            return generate_culture(current_book, prompt) or "Done."
+            return _append_activity(current_book, generate_culture(current_book, prompt) or "Done.")
         if cmd == "technology":
-            return generate_technology(current_book, prompt) or "Done."
+            return _append_activity(current_book, generate_technology(current_book, prompt) or "Done.")
         if cmd == "magic-system":
-            return generate_magic_system(current_book, prompt) or "Done."
+            return _append_activity(current_book, generate_magic_system(current_book, prompt) or "Done.")
         return f"Unknown worldbuilding command: {cmd}"
     except Exception as e:
         return f"Error: {e}"
@@ -296,7 +308,7 @@ def action_chapter(chapter_number: int, current_book: str, prompt: str) -> str:
     if not prompt:
         return "Provide a prompt."
     try:
-        return generate_chapter(current_book, int(chapter_number), prompt) or "Done."
+        return _append_activity(current_book, generate_chapter(current_book, int(chapter_number), prompt) or "Done.")
     except Exception as e:
         return f"Error: {e}"
 
@@ -308,9 +320,9 @@ def action_cover(cmd: str, current_book: str, prompt: str) -> str:
         return "Provide a prompt."
     try:
         if cmd == "cover":
-            return generate_cover(current_book, prompt) or "Done."
+            return _append_activity(current_book, generate_cover(current_book, prompt) or "Done.")
         if cmd == "back-cover":
-            return generate_back_cover(current_book, prompt) or "Done."
+            return _append_activity(current_book, generate_back_cover(current_book, prompt) or "Done.")
         return f"Unknown cover command: {cmd}"
     except Exception as e:
         return f"Error: {e}"
@@ -335,7 +347,8 @@ def action_iterate_check_names(current_book: str, prompt: str) -> str:
         return "Select a book first."
     try:
         result = iterate_check_names(current_book)
-        return str(result) if result is not None else "Done."
+        text = str(result) if result is not None else "Done."
+        return _append_activity(current_book, text)
     except Exception as e:
         return f"Error: {e}"
 
@@ -347,7 +360,7 @@ def action_iterate_fix_name(current_book: str, original_name: str, new_name: str
         return "Provide both original and new names."
     try:
         fix_name_in_chapters(current_book, original_name, new_name)
-        return "Name change completed."
+        return _append_activity(current_book, "Name change completed.")
     except Exception as e:
         return f"Error: {e}"
 
@@ -359,7 +372,7 @@ def action_iterate_refine_motivation(current_book: str, character_name: str, sto
         return "Provide character name and story context."
     try:
         refine_character_motivation(current_book, character_name, story_context)
-        return "Motivation refined."
+        return _append_activity(current_book, "Motivation refined.")
     except Exception as e:
         return f"Error: {e}"
 
@@ -371,7 +384,7 @@ def action_iterate_strengthen_argument(current_book: str, argument: str) -> str:
         return "Provide an argument to strengthen."
     try:
         strengthen_core_argument(current_book, argument)
-        return "Core argument strengthened."
+        return _append_activity(current_book, "Core argument strengthened.")
     except Exception as e:
         return f"Error: {e}"
 
@@ -383,7 +396,7 @@ def action_iterate_insert_chapter(current_book: str, position: int, prompt: str)
         return "Provide position and prompt."
     try:
         insert_new_chapter(current_book, int(position), prompt)
-        return "Chapter inserted."
+        return _append_activity(current_book, "Chapter inserted.")
     except Exception as e:
         return f"Error: {e}"
 
@@ -395,7 +408,7 @@ def action_iterate_add_flashback(current_book: str, position: int, prompt: str) 
         return "Provide position and prompt."
     try:
         insert_new_chapter(current_book, int(position), prompt, flashback=True)
-        return "Flashback inserted."
+        return _append_activity(current_book, "Flashback inserted.")
     except Exception as e:
         return f"Error: {e}"
 
@@ -407,7 +420,7 @@ def action_iterate_split_chapter(current_book: str, position: int, prompt: str) 
         return "Provide position and prompt."
     try:
         insert_new_chapter(current_book, int(position), prompt, split=True)
-        return "Split inserted."
+        return _append_activity(current_book, "Split inserted.")
     except Exception as e:
         return f"Error: {e}"
 
@@ -419,7 +432,7 @@ def action_iterate_check_consistency(current_book: str, prompt: str) -> str:
         return "Provide a prompt."
     try:
         check_consistency_across(current_book, prompt)
-        return "Consistency check complete."
+        return _append_activity(current_book, "Consistency check complete.")
     except Exception as e:
         return f"Error: {e}"
 
