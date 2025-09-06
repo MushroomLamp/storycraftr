@@ -8,6 +8,40 @@ from typing import List, Tuple
 import gradio as gr
 from rich.console import Console
 
+# Direct imports to call the application logic without shelling out to the CLI
+from storycraftr.init import init_structure_story
+from storycraftr.utils.core import load_book_config
+from storycraftr.agent.agents import create_or_get_assistant, update_agent_files
+from storycraftr.utils.pdf import to_pdf
+
+# Story agent functions
+from storycraftr.agent.story.outline import (
+    generate_general_outline,
+    generate_character_summary,
+    generate_plot_points,
+    generate_chapter_synopsis,
+)
+from storycraftr.agent.story.worldbuilding import (
+    generate_history,
+    generate_geography,
+    generate_culture,
+    generate_magic_system,
+    generate_technology,
+)
+from storycraftr.agent.story.chapters import (
+    generate_chapter,
+    generate_cover,
+    generate_back_cover,
+)
+from storycraftr.agent.story.iterate import (
+    iterate_check_names,
+    fix_name_in_chapters,
+    refine_character_motivation,
+    strengthen_core_argument,
+    insert_new_chapter,
+    check_consistency_across,
+)
+
  
 
 console = Console()
@@ -75,6 +109,7 @@ WORLD_HELP: dict[str, str] = {
 }
 
 def run_cli(args: List[str], cwd: str | None = None) -> Tuple[str, int]:
+    # Deprecated: retained for backwards compatibility if needed.
     try:
         console.print(f"[bold blue]Running:[/bold blue] {CLI} {' '.join(args)} cwd={cwd or os.getcwd()}")
         proc = subprocess.run([CLI, *args], capture_output=True, text=True, cwd=cwd)  # nosec
@@ -195,22 +230,24 @@ def action_new_project(project_name: str, behavior_text: str, primary_language: 
     if msg.startswith("Error"):
         return msg, ""
 
-    args = [
-        "init",
-        str(project),
-        "--primary-language",
-        primary_language or "en",
-        "--behavior",
-        str(behavior_path),
-        "--openai-model",
-        openai_model or "gpt-4o",
-        "--openai-url",
-        openai_url or "https://api.openai.com/v1",
-    ]
-    out, code = run_cli(args)
-    if code == 0:
-        return f"Initialized at {project}", out
-    return out, ""
+    # Initialize project structure directly
+    try:
+        init_structure_story(
+            book_path=str(project),
+            license="CC BY-NC-SA",
+            primary_language=primary_language or "en",
+            alternate_languages=[],
+            default_author="Author Name",
+            genre="fantasy",
+            behavior_content=behavior_text or "",
+            reference_author="None",
+            cli_name="storycraftr",
+            openai_url=openai_url or "https://api.openai.com/v1",
+            openai_model=openai_model or "gpt-4o",
+        )
+        return f"Initialized at {project}", "Initialized via direct API."
+    except Exception as e:
+        return f"Initialization error: {e}", ""
 
 
 def action_outline(cmd: str, current_book: str, prompt: str) -> str:
@@ -218,9 +255,18 @@ def action_outline(cmd: str, current_book: str, prompt: str) -> str:
         return "Select a book first."
     if not prompt:
         return "Provide a prompt."
-    args = ["outline", cmd, "--book-path", current_book, "--", prompt]
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Done."
+    try:
+        if cmd == "general-outline":
+            return generate_general_outline(current_book, prompt) or "Done."
+        if cmd == "character-summary":
+            return generate_character_summary(current_book, prompt) or "Done."
+        if cmd == "plot-points":
+            return generate_plot_points(current_book, prompt) or "Done."
+        if cmd == "chapter-synopsis":
+            return generate_chapter_synopsis(current_book, prompt) or "Done."
+        return f"Unknown outline command: {cmd}"
+    except Exception as e:
+        return f"Error: {e}"
 
 
 def action_worldbuilding(cmd: str, current_book: str, prompt: str) -> str:
@@ -228,9 +274,20 @@ def action_worldbuilding(cmd: str, current_book: str, prompt: str) -> str:
         return "Select a book first."
     if not prompt:
         return "Provide a prompt."
-    args = ["worldbuilding", cmd, "--book-path", current_book, "--", prompt]
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Done."
+    try:
+        if cmd == "history":
+            return generate_history(current_book, prompt) or "Done."
+        if cmd == "geography":
+            return generate_geography(current_book, prompt) or "Done."
+        if cmd == "culture":
+            return generate_culture(current_book, prompt) or "Done."
+        if cmd == "technology":
+            return generate_technology(current_book, prompt) or "Done."
+        if cmd == "magic-system":
+            return generate_magic_system(current_book, prompt) or "Done."
+        return f"Unknown worldbuilding command: {cmd}"
+    except Exception as e:
+        return f"Error: {e}"
 
 
 def action_chapter(chapter_number: int, current_book: str, prompt: str) -> str:
@@ -238,17 +295,10 @@ def action_chapter(chapter_number: int, current_book: str, prompt: str) -> str:
         return "Select a book first."
     if not prompt:
         return "Provide a prompt."
-    args = [
-        "chapters",
-        "chapter",
-        "--book-path",
-        current_book,
-        "--",
-        str(int(chapter_number)),
-        prompt,
-    ]
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Done."
+    try:
+        return generate_chapter(current_book, int(chapter_number), prompt) or "Done."
+    except Exception as e:
+        return f"Error: {e}"
 
 
 def action_cover(cmd: str, current_book: str, prompt: str) -> str:
@@ -256,9 +306,14 @@ def action_cover(cmd: str, current_book: str, prompt: str) -> str:
         return "Select a book first."
     if not prompt:
         return "Provide a prompt."
-    args = ["chapters", cmd, "--book-path", current_book, "--", prompt]
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Done."
+    try:
+        if cmd == "cover":
+            return generate_cover(current_book, prompt) or "Done."
+        if cmd == "back-cover":
+            return generate_back_cover(current_book, prompt) or "Done."
+        return f"Unknown cover command: {cmd}"
+    except Exception as e:
+        return f"Error: {e}"
 
 
 def action_publish_pdf(language: str, translate: str, current_book: str) -> str:
@@ -266,22 +321,23 @@ def action_publish_pdf(language: str, translate: str, current_book: str) -> str:
         return "Select a book first."
     if not language:
         return "Provide primary language (e.g., en)."
-    args = ["publish", "pdf", language]
-    if translate:
-        args.extend(["--translate", translate])
-    args.extend(["--book-path", current_book])
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Done."
+    try:
+        output_pdf = to_pdf(current_book, language, translate or None)
+        return f"PDF generated at: {output_pdf}"
+    except SystemExit:
+        return "Publishing aborted due to missing dependencies. See logs."
+    except Exception as e:
+        return f"Error generating PDF: {e}"
 
 
 def action_iterate_check_names(current_book: str, prompt: str) -> str:
     if not current_book:
         return "Select a book first."
-    args = ["iterate", "check-names", "--book-path", current_book]
-    if prompt:
-        args.append(prompt)
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Done."
+    try:
+        result = iterate_check_names(current_book)
+        return str(result) if result is not None else "Done."
+    except Exception as e:
+        return f"Error: {e}"
 
 
 def action_iterate_fix_name(current_book: str, original_name: str, new_name: str) -> str:
@@ -289,17 +345,11 @@ def action_iterate_fix_name(current_book: str, original_name: str, new_name: str
         return "Select a book first."
     if not original_name or not new_name:
         return "Provide both original and new names."
-    args = [
-        "iterate",
-        "fix-name",
-        "--book-path",
-        current_book,
-        "--",
-        original_name,
-        new_name,
-    ]
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Done."
+    try:
+        fix_name_in_chapters(current_book, original_name, new_name)
+        return "Name change completed."
+    except Exception as e:
+        return f"Error: {e}"
 
 
 def action_iterate_refine_motivation(current_book: str, character_name: str, story_context: str) -> str:
@@ -307,17 +357,11 @@ def action_iterate_refine_motivation(current_book: str, character_name: str, sto
         return "Select a book first."
     if not character_name or not story_context:
         return "Provide character name and story context."
-    args = [
-        "iterate",
-        "refine-motivation",
-        "--book-path",
-        current_book,
-        "--",
-        character_name,
-        story_context,
-    ]
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Done."
+    try:
+        refine_character_motivation(current_book, character_name, story_context)
+        return "Motivation refined."
+    except Exception as e:
+        return f"Error: {e}"
 
 
 def action_iterate_strengthen_argument(current_book: str, argument: str) -> str:
@@ -325,16 +369,11 @@ def action_iterate_strengthen_argument(current_book: str, argument: str) -> str:
         return "Select a book first."
     if not argument:
         return "Provide an argument to strengthen."
-    args = [
-        "iterate",
-        "strengthen-argument",
-        "--book-path",
-        current_book,
-        "--",
-        argument,
-    ]
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Done."
+    try:
+        strengthen_core_argument(current_book, argument)
+        return "Core argument strengthened."
+    except Exception as e:
+        return f"Error: {e}"
 
 
 def action_iterate_insert_chapter(current_book: str, position: int, prompt: str) -> str:
@@ -342,17 +381,11 @@ def action_iterate_insert_chapter(current_book: str, position: int, prompt: str)
         return "Select a book first."
     if position is None or not prompt:
         return "Provide position and prompt."
-    args = [
-        "iterate",
-        "insert-chapter",
-        "--book-path",
-        current_book,
-        "--",
-        str(int(position)),
-        prompt,
-    ]
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Done."
+    try:
+        insert_new_chapter(current_book, int(position), prompt)
+        return "Chapter inserted."
+    except Exception as e:
+        return f"Error: {e}"
 
 
 def action_iterate_add_flashback(current_book: str, position: int, prompt: str) -> str:
@@ -360,17 +393,11 @@ def action_iterate_add_flashback(current_book: str, position: int, prompt: str) 
         return "Select a book first."
     if position is None or not prompt:
         return "Provide position and prompt."
-    args = [
-        "iterate",
-        "add-flashback",
-        "--book-path",
-        current_book,
-        "--",
-        str(int(position)),
-        prompt,
-    ]
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Done."
+    try:
+        insert_new_chapter(current_book, int(position), prompt, flashback=True)
+        return "Flashback inserted."
+    except Exception as e:
+        return f"Error: {e}"
 
 
 def action_iterate_split_chapter(current_book: str, position: int, prompt: str) -> str:
@@ -378,17 +405,11 @@ def action_iterate_split_chapter(current_book: str, position: int, prompt: str) 
         return "Select a book first."
     if position is None or not prompt:
         return "Provide position and prompt."
-    args = [
-        "iterate",
-        "split-chapter",
-        "--book-path",
-        current_book,
-        "--",
-        str(int(position)),
-        prompt,
-    ]
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Done."
+    try:
+        insert_new_chapter(current_book, int(position), prompt, split=True)
+        return "Split inserted."
+    except Exception as e:
+        return f"Error: {e}"
 
 
 def action_iterate_check_consistency(current_book: str, prompt: str) -> str:
@@ -396,16 +417,11 @@ def action_iterate_check_consistency(current_book: str, prompt: str) -> str:
         return "Select a book first."
     if not prompt:
         return "Provide a prompt."
-    args = [
-        "iterate",
-        "check-consistency",
-        "--book-path",
-        current_book,
-        "--",
-        prompt,
-    ]
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Done."
+    try:
+        check_consistency_across(current_book, prompt)
+        return "Consistency check complete."
+    except Exception as e:
+        return f"Error: {e}"
 
 
 
@@ -448,9 +464,14 @@ def action_save_chapter(current_book: str, rel_path: str, content: str) -> str:
 def action_reload_files(current_book: str) -> str:
     if not current_book:
         return "Select a book first."
-    args = ["reload-files", "--book-path", current_book]
-    out, _ = run_cli(args, cwd=current_book)
-    return out or "Synced."
+    try:
+        if not load_book_config(current_book):
+            return "Project not initialized or config missing."
+        assistant = create_or_get_assistant(current_book)
+        update_agent_files(current_book, assistant)
+        return f"Agent files reloaded successfully for project: {current_book}"
+    except Exception as e:
+        return f"Error reloading files: {e}"
 
 
 # ----------------------------- UI Layout ---------------------------------

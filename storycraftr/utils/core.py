@@ -76,7 +76,6 @@ class BookConfig(NamedTuple):
         cli_name (str): The name of the CLI tool used.
         openai_url (str): The URL of the OpenAI API.
         openai_model (str): The OpenAI model to use.
-        multiple_answer (bool): Whether multiple answers are allowed.
     """
 
     book_path: str
@@ -91,7 +90,6 @@ class BookConfig(NamedTuple):
     cli_name: str
     openai_url: str
     openai_model: str
-    multiple_answer: bool
 
 
 def load_book_config(book_path: str):
@@ -136,7 +134,6 @@ def load_book_config(book_path: str):
             "cli_name": "papercraftr",
             "openai_url": "https://api.openai.com/v1",
             "openai_model": "gpt-4o",
-            "multiple_answer": True,
         }
 
         # Update default config with actual config data

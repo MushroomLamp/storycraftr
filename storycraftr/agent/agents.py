@@ -611,11 +611,9 @@ def create_message(
     file_path: str = None,
     progress: Progress = None,
     task_id=None,
-    force_single_answer: bool = False,
 ) -> str:
     """
-    Create a message in the thread and process it asynchronously. If config.multiple_answer is true,
-    the assistant response will be requested in parts, iterating until the response is complete.
+    Create a message in the thread and return a single complete response.
 
     Args:
         book_path (str): Path to the book directory.
@@ -625,10 +623,9 @@ def create_message(
         file_path (str, optional): The path to a file to attach as an attachment. Defaults to None.
         progress (Progress, optional): Progress object for tracking. Defaults to None.
         task_id (int, optional): Task ID for the progress bar.
-        force_single_answer (bool, optional): If true, forces a single response regardless of config.multiple_answer. Defaults to False.
 
     Returns:
-        str: The generated response text from the assistant, post-processed if multiple_answer is true.
+        str: The generated response text from the assistant.
     """
     client = initialize_openai_client(book_path)
     config = load_book_config(book_path)
@@ -672,18 +669,6 @@ def create_message(
                 f"[bold blue]Using provided prompt to generate new content...[/bold blue]"
             )
 
-    # Add instructions for multiple answers if the flag is true and force_single_answer is false
-    if config.multiple_answer and not force_single_answer:
-        console.print(
-            "[bold blue]Adding multi-part response generation instructions (3 parts total)...[/bold blue]"
-        )
-        content = (
-            "Please provide the response in exactly 3 parts to avoid output token limitations. "
-            "ONLY in the final (third) part, indicate 'END_OF_RESPONSE' when the response is complete. "
-            "Continue providing the next part of the response when you receive the prompt 'next'.\n\n"
-            + content
-        )
-
     # Generar el prompt con hash
     prompt_with_hash = generate_prompt_with_hash(
         f"{FORMAT_OUTPUT.format(reference_author=config.reference_author, language=config.primary_language)}\n\n{content}",
@@ -692,15 +677,8 @@ def create_message(
     )
 
     try:
-        if config.multiple_answer and not force_single_answer:
-            console.print(
-                "[bold blue]Starting multi-part response generation (3 parts total)...[/bold blue]"
-            )
-
         if internal_progress:
             progress.start()
-
-        done_flag = "END_OF_RESPONSE"
 
         # Helper to extract text robustly from Responses API
         def _extract_text(resp) -> str:
@@ -946,60 +924,8 @@ def create_message(
         if DEBUG:
             _debug(f"Initial response text len={len(response_text)}")
 
-        if config.multiple_answer and not force_single_answer:
-            console.print("[bold green]✓ First part of the response received[/bold green]")
-
-        # Continue for next parts if needed
-        iter = 0
-        while (not force_single_answer and (done_flag not in response_text) and iter < 2):
-            iter += 1
-            if should_print:
-                console.print(f"[bold blue]Requesting part {iter + 1} of 3...[/bold blue]")
-
-            next_prompt = "next"
-            if iter == 2:
-                next_prompt = "THIS IS THE FINAL PART. PLEASE COMPLETE YOUR RESPONSE AND END WITH 'END_OF_RESPONSE'."
-                console.print("[bold yellow]⚠ This is the final part. The response should be completed and include END_OF_RESPONSE.[/bold yellow]")
-
-            # Ask the model to continue within the same conversation with a new user turn.
-            input_items.append({"role": "user", "content": next_prompt})
-            response = _create_response(input_items)
-            response = _resolve_tools_loop(input_items, response)
-            new_output = _extract_text(response)
-            if DEBUG:
-                _debug(f"Continuation response text len={len(new_output)}")
-
-            # If the API returns cumulative output (entire transcript), extract only the new delta.
-            if isinstance(new_output, str) and new_output.startswith(response_text):
-                new_part = new_output[len(response_text):]
-            else:
-                # Fallback: try to trim the longest common prefix to reduce duplication.
-                try:
-                    from difflib import SequenceMatcher  # local import to avoid global dependency
-                    matcher = SequenceMatcher(None, response_text, new_output or "")
-                    match = matcher.find_longest_match(0, len(response_text), 0, len(new_output or ""))
-                    if match and match.a == 0 and match.size > 0:
-                        new_part = (new_output or "")[match.size:]
-                    else:
-                        new_part = new_output or ""
-                except Exception:
-                    new_part = new_output or ""
-
-            if config.multiple_answer and not force_single_answer:
-                console.print(f"[bold green]✓ Part {iter + 1} of 3 received[/bold green]")
-
-            if new_part:
-                response_text += "\n" + new_part
-
         if internal_progress:
             progress.stop()
-
-        if done_flag in response_text:
-            response_text = response_text.replace(done_flag, "")
-            if config.multiple_answer and not force_single_answer:
-                console.print(
-                    "[bold green]✓ END_OF_RESPONSE detected - Response completed successfully with all 3 parts[/bold green]"
-                )
 
         if DEBUG:
             _debug(

@@ -81,7 +81,6 @@ def init_structure_story(
         "cli_name": cli_name,
         "openai_url": openai_url,
         "openai_model": openai_model,
-        "multiple_answer": True,
     }
     config_file = Path(book_path) / "storycraftr.json"
     config_file.write_text(json.dumps(config_data, indent=4), encoding="utf-8")
@@ -142,7 +141,6 @@ def init_structure_paper(
         "cli_name": cli_name,
         "openai_url": openai_url,
         "openai_model": openai_model,
-        "multiple_answer": True,
         "reference_author": "Leading experts in the field",  # Valor por defecto para papers
     }
 

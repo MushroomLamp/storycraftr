@@ -1,20 +1,10 @@
 ## Advanced Usage of StoryCraftr
 
-StoryCraftr provides advanced features for users who want more control over how the tool interacts with their projects. This guide will walk you through these features, including multi-prompt responses, file backups, and the `reload-files` command.
+StoryCraftr provides advanced features for users who want more control over how the tool interacts with their projects. This guide will walk you through these features, including file backups and the `reload-files` command.
 
-### Multiple Prompts Feature
+### Single Response Generation
 
-By default, StoryCraftr uses **multiple prompts** when generating or refining content. This feature allows for more detailed and comprehensive outputs by breaking the response into parts and requesting confirmation before continuing. If you prefer a single, uninterrupted response, you can disable this feature by editing the `storycraftr.json` configuration file.
-
-In your `storycraftr.json` file:
-
-```json
-{
-  "multiple_answer": false
-}
-```
-
-With `multiple_answer` set to `false`, StoryCraftr will generate a single, complete response for any prompt, without dividing it into sections.
+StoryCraftr now always generates a single, complete response for any prompt. The prior multi-part response option has been removed in favor of agentic function-calling with surgical, structured editing of your markdown files.
 
 ### Backup Files
 
@@ -51,7 +41,7 @@ This command will:
 
 ### Summary
 
-- **Multiple Prompts**: Enabled by default, but can be turned off for a single-response output.
+- **Single Response**: StoryCraftr returns a single, complete response for each prompt.
 - **Backup Files**: Automatically generated with a `.back` extension for every modified file.
 - **Reload Files**: Use `storycraftr reload-files` to update the assistant's context after making manual changes.
 
