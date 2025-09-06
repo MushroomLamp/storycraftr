@@ -7,11 +7,19 @@ from typing import List, Tuple
 
 import gradio as gr
 from rich.console import Console
+from difflib import HtmlDiff
+import html as _html
 
 # Direct imports to call the application logic without shelling out to the CLI
 from storycraftr.init import init_structure_story
 from storycraftr.utils.core import load_book_config
-from storycraftr.agent.agents import create_or_get_assistant, update_agent_files, get_last_activity_for_book
+from storycraftr.agent.agents import (
+    create_or_get_assistant,
+    update_agent_files,
+    get_last_activity_for_book,
+    delete_assistant,
+)
+from storycraftr.agent.agents import get_last_edited_file_for_book
 from storycraftr.utils.pdf import to_pdf
 
 # Story agent functions
@@ -160,8 +168,14 @@ def delete_book(book_name: str) -> str:
     try:
         target = book_path(book_name)
         if target.exists() and target.is_dir():
+            # Attempt to delete associated vector store first (best-effort)
+            try:
+                delete_assistant(str(target))
+            except Exception as _e:
+                # Proceed with local deletion even if remote deletion fails
+                pass
             shutil.rmtree(target)
-            return f"Deleted book: {book_name}"
+            return f"Deleted book and associated vector store (if any): {book_name}"
         return "Book not found."
     except Exception as e:
         return f"Error deleting book: {e}"
@@ -196,6 +210,149 @@ def list_chapter_files(root: Path) -> List[str]:
             pass
     rels.sort()
     return rels
+
+
+# ----------------------------- Diff Helpers ---------------------------------
+
+def _read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except Exception as e:
+        return f"Error reading file: {e}"
+
+
+def _backup_path_for(path: Path) -> Path:
+    return Path(str(path) + ".back")
+
+
+def _diff_html(old_text: str, new_text: str, left_label: str, right_label: str) -> str:
+    try:
+        from difflib import SequenceMatcher
+
+        old_lines = old_text.splitlines()
+        new_lines = new_text.splitlines()
+
+        def esc(s: str) -> str:
+            return _html.escape(s, quote=False)
+
+        def intraline(a: str, b: str) -> Tuple[str, str]:
+            sm = SequenceMatcher(None, a, b)
+            a_out = []
+            b_out = []
+            for tag, i1, i2, j1, j2 in sm.get_opcodes():
+                if tag == "equal":
+                    a_out.append(esc(a[i1:i2]))
+                    b_out.append(esc(b[j1:j2]))
+                elif tag == "delete":
+                    a_out.append(f"<span class=\"tok-del\">{esc(a[i1:i2])}</span>")
+                elif tag == "insert":
+                    b_out.append(f"<span class=\"tok-ins\">{esc(b[j1:j2])}</span>")
+                elif tag == "replace":
+                    a_out.append(f"<span class=\"tok-del\">{esc(a[i1:i2])}</span>")
+                    b_out.append(f"<span class=\"tok-ins\">{esc(b[j1:j2])}</span>")
+            return "".join(a_out) or "&nbsp;", "".join(b_out) or "&nbsp;"
+
+        sm = SequenceMatcher(None, old_lines, new_lines)
+        rows = []
+        l_old = 1
+        l_new = 1
+
+        def add_row(cls: str, ln_l: str, left_html: str, ln_r: str, right_html: str):
+            rows.append(
+                f"<tr class=\"{cls}\">"
+                f"<td class=\"lnum\">{ln_l}</td><td class=\"cell\">{left_html}</td>"
+                f"<td class=\"lnum\">{ln_r}</td><td class=\"cell\">{right_html}</td>"
+                f"</tr>"
+            )
+
+        for tag, i1, i2, j1, j2 in sm.get_opcodes():
+            if tag == "equal":
+                for k in range(i2 - i1):
+                    left = esc(old_lines[i1 + k]) or "&nbsp;"
+                    right = esc(new_lines[j1 + k]) or "&nbsp;"
+                    add_row("same", str(l_old), left, str(l_new), right)
+                    l_old += 1
+                    l_new += 1
+            elif tag == "delete":
+                for k in range(i2 - i1):
+                    left = esc(old_lines[i1 + k]) or "&nbsp;"
+                    add_row("removed", str(l_old), left, "", "&nbsp;")
+                    l_old += 1
+            elif tag == "insert":
+                for k in range(j2 - j1):
+                    right = esc(new_lines[j1 + k]) or "&nbsp;"
+                    add_row("added", "", "&nbsp;", str(l_new), right)
+                    l_new += 1
+            elif tag == "replace":
+                len_l = i2 - i1
+                len_r = j2 - j1
+                max_len = max(len_l, len_r)
+                for k in range(max_len):
+                    left_raw = old_lines[i1 + k] if k < len_l else ""
+                    right_raw = new_lines[j1 + k] if k < len_r else ""
+                    if left_raw and right_raw:
+                        left_h, right_h = intraline(left_raw, right_raw)
+                        add_row("changed", str(l_old), left_h, str(l_new), right_h)
+                        l_old += 1
+                        l_new += 1
+                    elif left_raw and not right_raw:
+                        add_row("removed", str(l_old), esc(left_raw) or "&nbsp;", "", "&nbsp;")
+                        l_old += 1
+                    elif right_raw and not left_raw:
+                        add_row("added", "", "&nbsp;", str(l_new), esc(right_raw) or "&nbsp;")
+                        l_new += 1
+
+        styles = """
+<style>
+  .sc-diff { max-height: 60vh; overflow: auto; background: #1e1e1e; border: 1px solid #3c3c3c; border-radius: 6px; }
+  .sc-diff table { width: 100%; table-layout: fixed; border-collapse: collapse; color: #d4d4d4; font-size: 13px; }
+  .sc-diff thead th { position: sticky; top: 0; background: #2d2d2d; z-index: 1; color: #c5c5c5; }
+  .sc-diff th, .sc-diff td { border-bottom: 1px solid #2a2a2a; padding: 2px 6px; vertical-align: top; }
+  .sc-diff .lnum { width: 3.5ch; text-align: right; color: #858585; border-right: 1px solid #2a2a2a; }
+  .sc-diff .cell { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .sc-diff tr.same .cell { background: transparent; }
+  .sc-diff tr.added .cell { background: rgba(76, 175, 80, 0.18); }
+  .sc-diff tr.removed .cell { background: rgba(244, 67, 54, 0.18); }
+  .sc-diff tr.changed .cell { background: rgba(255, 193, 7, 0.16); }
+  .sc-diff .tok-ins { background: rgba(76, 175, 80, 0.35); }
+  .sc-diff .tok-del { background: rgba(244, 67, 54, 0.35); }
+</style>
+"""
+        header = (
+            f"<thead><tr>"
+            f"<th class='lnum'></th><th>{_html.escape(left_label)}</th>"
+            f"<th class='lnum'></th><th>{_html.escape(right_label)}</th>"
+            f"</tr></thead>"
+        )
+        body = "<tbody>" + "".join(rows) + "</tbody>"
+        return f"{styles}<div class=\"sc-diff\"><table>{header}{body}</table></div>"
+    except Exception as e:
+        return f"<div>Error generating diff: {e}</div>"
+
+
+def action_diff_for_file(current_book: str, rel_path: str) -> Tuple[str, str]:
+    if not current_book or not rel_path:
+        return "Select a book and file.", ""
+    root = Path(current_book)
+    cur = root / rel_path
+    bak = _backup_path_for(cur)
+    if not cur.exists():
+        return f"File not found: {rel_path}", ""
+    if not bak.exists():
+        return f"No backup found for {rel_path} (expected '{rel_path}.back').", ""
+    left = _read_text(bak)
+    right = _read_text(cur)
+    title = f"Diff: {rel_path}.back ⟷ {rel_path}"
+    return title, _diff_html(left, right, f"{rel_path}.back", rel_path)
+
+
+def action_diff_latest(current_book: str) -> Tuple[str, str]:
+    if not current_book:
+        return "Select a book first.", ""
+    rel = get_last_edited_file_for_book(current_book)
+    if not rel:
+        return "No recent edits to diff.", ""
+    return action_diff_for_file(current_book, rel)
 
 
 # ----------------------------- UI Actions ---------------------------------
@@ -601,15 +758,21 @@ def build_app() -> gr.Blocks:
                         chapters_dropdown = gr.Dropdown(choices=[], label="Chapters", interactive=True, info="Markdown chapter files under chapters/.")
                         load_chapter_btn = gr.Button("Load Chapter")
                         save_chapter_btn = gr.Button("Save Chapter")
+                        diff_chapter_btn = gr.Button("Show Chapter Diff")
                         gr.Markdown("### Files")
                         files_dropdown = gr.Dropdown(choices=[], label="Files", interactive=True, info="Common text/markdown/json/tex files in the project.")
                         load_file_btn = gr.Button("Load File")
                         save_file_btn = gr.Button("Save File")
+                        diff_file_btn = gr.Button("Show File Diff")
                         sync_btn = gr.Button("Sync Assistant Files")
+                        latest_diff_btn = gr.Button("Show Latest Diff")
                     with gr.Column(scale=2):
                         chapter_editor = gr.Code(label="Chapter Editor", language="markdown")
                         file_editor = gr.Code(label="Editor", language="markdown")
                         file_msg = gr.Markdown()
+                        gr.Markdown("### Diff Viewer")
+                        diff_title = gr.Markdown()
+                        diff_view = gr.HTML()
 
                 # When the current book changes, refresh dropdowns
                 def on_book_change(p: str):
@@ -627,6 +790,9 @@ def build_app() -> gr.Blocks:
                 load_file_btn.click(action_load_file, inputs=[current_book_path, files_dropdown], outputs=file_editor)
                 save_file_btn.click(action_save_file, inputs=[current_book_path, files_dropdown, file_editor], outputs=file_msg)
                 sync_btn.click(action_reload_files, inputs=current_book_path, outputs=file_msg)
+                diff_chapter_btn.click(action_diff_for_file, inputs=[current_book_path, chapters_dropdown], outputs=[diff_title, diff_view])
+                diff_file_btn.click(action_diff_for_file, inputs=[current_book_path, files_dropdown], outputs=[diff_title, diff_view])
+                latest_diff_btn.click(action_diff_latest, inputs=current_book_path, outputs=[diff_title, diff_view])
 
                 # Command sections
                 with gr.Tabs():
@@ -644,7 +810,11 @@ def build_app() -> gr.Blocks:
                                 outline_help = gr.Markdown(value=OUTLINE_HELP["general-outline"], label="Help")
                                 outline_out = gr.Markdown(label="Output")
                         outline_cmd.change(get_outline_help, inputs=outline_cmd, outputs=outline_help)
-                        run_outline.click(action_outline, inputs=[outline_cmd, current_book_path, outline_prompt], outputs=outline_out)
+                        def _outline_and_diff(cmd: str, book: str, pr: str):
+                            msg = action_outline(cmd, book, pr)
+                            t, h = action_diff_latest(book)
+                            return msg, t, h
+                        run_outline.click(_outline_and_diff, inputs=[outline_cmd, current_book_path, outline_prompt], outputs=[outline_out, diff_title, diff_view])
 
                     with gr.Tab("Worldbuilding"):
                         gr.Markdown("Create history, geography, culture, technology, magic/science system.")
@@ -660,7 +830,11 @@ def build_app() -> gr.Blocks:
                                 world_help = gr.Markdown(value=WORLD_HELP["history"], label="Help")
                                 world_out = gr.Markdown(label="Output")
                         world_cmd.change(get_world_help, inputs=world_cmd, outputs=world_help)
-                        run_world.click(action_worldbuilding, inputs=[world_cmd, current_book_path, world_prompt], outputs=world_out)
+                        def _world_and_diff(cmd: str, book: str, pr: str):
+                            msg = action_worldbuilding(cmd, book, pr)
+                            t, h = action_diff_latest(book)
+                            return msg, t, h
+                        run_world.click(_world_and_diff, inputs=[world_cmd, current_book_path, world_prompt], outputs=[world_out, diff_title, diff_view])
 
                     with gr.Tab("Chapters"):
                         gr.Markdown("Generate chapters and book cover texts.")
@@ -692,9 +866,21 @@ def build_app() -> gr.Blocks:
                                 ch_out = gr.Markdown(label="Output")
                                 cover_out = gr.Markdown(label="Cover Output")
                                 back_cover_out = gr.Markdown(label="Back Cover Output")
-                        btn_chapter.click(action_chapter, inputs=[ch_num, current_book_path, ch_prompt], outputs=ch_out)
-                        btn_cover.click(lambda pth, pr: action_cover("cover", pth, pr), inputs=[current_book_path, cover_prompt], outputs=cover_out)
-                        btn_back_cover.click(lambda pth, pr: action_cover("back-cover", pth, pr), inputs=[current_book_path, back_cover_prompt], outputs=back_cover_out)
+                        def _chapter_and_diff(num: int, book: str, pr: str):
+                            msg = action_chapter(num, book, pr)
+                            t, h = action_diff_latest(book)
+                            return msg, t, h
+                        def _cover_and_diff(book: str, pr: str):
+                            msg = action_cover("cover", book, pr)
+                            t, h = action_diff_latest(book)
+                            return msg, t, h
+                        def _back_cover_and_diff(book: str, pr: str):
+                            msg = action_cover("back-cover", book, pr)
+                            t, h = action_diff_latest(book)
+                            return msg, t, h
+                        btn_chapter.click(_chapter_and_diff, inputs=[ch_num, current_book_path, ch_prompt], outputs=[ch_out, diff_title, diff_view])
+                        btn_cover.click(_cover_and_diff, inputs=[current_book_path, cover_prompt], outputs=[cover_out, diff_title, diff_view])
+                        btn_back_cover.click(_back_cover_and_diff, inputs=[current_book_path, back_cover_prompt], outputs=[back_cover_out, diff_title, diff_view])
 
                     with gr.Tab("Refine"):
                         gr.Markdown("Iterative refinement tools for working on existing books.")
@@ -721,8 +907,16 @@ def build_app() -> gr.Blocks:
                                     ),
                                 )
                                 refine_names_out = gr.Markdown(label="Names Output")
-                        btn_check_names.click(action_iterate_check_names, inputs=[current_book_path, names_prompt], outputs=refine_names_out)
-                        btn_fix_name.click(action_iterate_fix_name, inputs=[current_book_path, orig_name, new_name], outputs=refine_names_out)
+                        def _check_names_and_diff(book: str, pr: str):
+                            msg = action_iterate_check_names(book, pr)
+                            t, h = action_diff_latest(book)
+                            return msg, t, h
+                        def _fix_name_and_diff(book: str, on: str, nn: str):
+                            msg = action_iterate_fix_name(book, on, nn)
+                            t, h = action_diff_latest(book)
+                            return msg, t, h
+                        btn_check_names.click(_check_names_and_diff, inputs=[current_book_path, names_prompt], outputs=[refine_names_out, diff_title, diff_view])
+                        btn_fix_name.click(_fix_name_and_diff, inputs=[current_book_path, orig_name, new_name], outputs=[refine_names_out, diff_title, diff_view])
 
                         with gr.Row():
                             with gr.Column():
@@ -741,7 +935,11 @@ def build_app() -> gr.Blocks:
                                     ),
                                 )
                                 motivation_out = gr.Markdown(label="Motivation Output")
-                        btn_refine_motivation.click(action_iterate_refine_motivation, inputs=[current_book_path, character_name, story_context], outputs=motivation_out)
+                        def _refine_motivation_and_diff(book: str, cn: str, sc: str):
+                            msg = action_iterate_refine_motivation(book, cn, sc)
+                            t, h = action_diff_latest(book)
+                            return msg, t, h
+                        btn_refine_motivation.click(_refine_motivation_and_diff, inputs=[current_book_path, character_name, story_context], outputs=[motivation_out, diff_title, diff_view])
 
                         with gr.Row():
                             with gr.Column():
@@ -759,7 +957,11 @@ def build_app() -> gr.Blocks:
                                     ),
                                 )
                                 argument_out = gr.Markdown(label="Argument Output")
-                        btn_strengthen.click(action_iterate_strengthen_argument, inputs=[current_book_path, argument], outputs=argument_out)
+                        def _strengthen_and_diff(book: str, arg: str):
+                            msg = action_iterate_strengthen_argument(book, arg)
+                            t, h = action_diff_latest(book)
+                            return msg, t, h
+                        btn_strengthen.click(_strengthen_and_diff, inputs=[current_book_path, argument], outputs=[argument_out, diff_title, diff_view])
 
                         with gr.Row():
                             with gr.Column():
@@ -786,9 +988,21 @@ def build_app() -> gr.Blocks:
                                     ),
                                 )
                                 insert_out = gr.Markdown(label="Insert Output")
-                        btn_insert.click(action_iterate_insert_chapter, inputs=[current_book_path, insert_pos, insert_prompt], outputs=insert_out)
-                        btn_flashback.click(action_iterate_add_flashback, inputs=[current_book_path, insert_pos, insert_prompt], outputs=insert_out)
-                        btn_split.click(action_iterate_split_chapter, inputs=[current_book_path, insert_pos, insert_prompt], outputs=insert_out)
+                        def _insert_and_diff(book: str, pos: int, pr: str):
+                            msg = action_iterate_insert_chapter(book, pos, pr)
+                            t, h = action_diff_latest(book)
+                            return msg, t, h
+                        def _flashback_and_diff(book: str, pos: int, pr: str):
+                            msg = action_iterate_add_flashback(book, pos, pr)
+                            t, h = action_diff_latest(book)
+                            return msg, t, h
+                        def _split_and_diff(book: str, pos: int, pr: str):
+                            msg = action_iterate_split_chapter(book, pos, pr)
+                            t, h = action_diff_latest(book)
+                            return msg, t, h
+                        btn_insert.click(_insert_and_diff, inputs=[current_book_path, insert_pos, insert_prompt], outputs=[insert_out, diff_title, diff_view])
+                        btn_flashback.click(_flashback_and_diff, inputs=[current_book_path, insert_pos, insert_prompt], outputs=[insert_out, diff_title, diff_view])
+                        btn_split.click(_split_and_diff, inputs=[current_book_path, insert_pos, insert_prompt], outputs=[insert_out, diff_title, diff_view])
 
                         with gr.Row():
                             with gr.Column():
@@ -806,7 +1020,11 @@ def build_app() -> gr.Blocks:
                                     ),
                                 )
                                 consistency_out = gr.Markdown(label="Consistency Output")
-                        btn_consistency.click(action_iterate_check_consistency, inputs=[current_book_path, consistency_prompt], outputs=consistency_out)
+                        def _consistency_and_diff(book: str, pr: str):
+                            msg = action_iterate_check_consistency(book, pr)
+                            t, h = action_diff_latest(book)
+                            return msg, t, h
+                        btn_consistency.click(_consistency_and_diff, inputs=[current_book_path, consistency_prompt], outputs=[consistency_out, diff_title, diff_view])
 
                     with gr.Tab("Publish"):
                         gr.Markdown("Generate PDF (requires Pandoc + XeLaTeX in the image: set INCLUDE_TEX=true and rebuild).")

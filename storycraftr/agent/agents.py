@@ -15,6 +15,7 @@ from storycraftr.utils.core import load_book_config, generate_prompt_with_hash
 from storycraftr.utils.core import load_conversation_id, save_conversation_id, clear_conversation_id
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
+import shutil
 
 load_dotenv()
 
@@ -25,6 +26,7 @@ DEBUG = str(os.getenv("STORYCRAFTR_DEBUG", "")).lower() in ("1", "true", "yes", 
 # the signature of generation functions. Keys by thread id and by book path for convenience.
 LAST_ACTIVITY_BY_THREAD: Dict[str, str] = {}
 LAST_ACTIVITY_BY_BOOK: Dict[str, str] = {}
+LAST_EDITED_FILE_BY_BOOK: Dict[str, str] = {}
 
 
 def get_last_activity_for_book(book_path: str) -> str:
@@ -41,6 +43,14 @@ def clear_last_activity_for_book(book_path: str) -> None:
         LAST_ACTIVITY_BY_BOOK.pop(str(book_path), None)
     except Exception:
         pass
+
+
+def get_last_edited_file_for_book(book_path: str) -> str:
+    """Return the last file path (relative to book) that the agent edited with changes > 0."""
+    try:
+        return LAST_EDITED_FILE_BY_BOOK.get(str(book_path), "") or ""
+    except Exception:
+        return ""
 
 
 def _debug(msg: str):
@@ -670,6 +680,16 @@ def create_message(
             )
         with open(file_path, "r", encoding="utf-8") as f:
             file_content = f.read()
+            # Create/overwrite backup of existing file as .md.back (or .back if not .md)
+            try:
+                backup_path = file_path + ".back"
+                if file_path.lower().endswith(".md"):
+                    backup_path = file_path + ".back"
+                # Ensure parent dir exists, then copy
+                shutil.copyfile(file_path, backup_path)
+                _debug(f"Backed up '{file_path}' to '{backup_path}'.")
+            except Exception as be:
+                _debug(f"Backup failed for '{file_path}': {be}")
             # Encourage tool usage for surgical edits
             rel_path = None
             try:
@@ -910,6 +930,15 @@ def create_message(
                         if name == "fs_read_text":
                             result = _read_text_file(book_path, args.get("path", ""))
                         elif name == "fs_apply_text_edits":
+                            # Before applying edits, ensure backup exists for the target file if it already exists
+                            try:
+                                target_rel = args.get("path", "") or ""
+                                target_abs = _normalize_path(book_path, target_rel)
+                                if target_abs.exists():
+                                    backup_abs = Path(str(target_abs) + ".back")
+                                    shutil.copyfile(str(target_abs), str(backup_abs))
+                            except Exception as be:
+                                _debug(f"Backup before edits failed for '{args.get('path', '')}': {be}")
                             result = _fs_apply_text_edits(
                                 book_path,
                                 args.get("path", ""),
@@ -919,6 +948,15 @@ def create_message(
                             try:
                                 tool_edit_invocations["fs_apply_text_edits"] += 1
                                 tool_edit_invocations["changes"] += int(result.get("changes", 0))
+                                # Track last edited file (only if changes > 0)
+                                if int(result.get("changes", 0)) > 0:
+                                    try:
+                                        # Normalize and store relative path
+                                        norm_abs = _normalize_path(book_path, args.get("path", ""))
+                                        rel = os.path.relpath(str(norm_abs), book_path)
+                                        LAST_EDITED_FILE_BY_BOOK[str(book_path)] = rel
+                                    except Exception:
+                                        LAST_EDITED_FILE_BY_BOOK[str(book_path)] = args.get("path", "")
                             except Exception:
                                 pass
                         else:
@@ -1076,19 +1114,29 @@ def reset_conversation(book_path: str, agent_name: str | None = None) -> None:
         console.print(f"[bold red]Failed to clear conversation: {e}[/bold red]")
 
 
-def delete_file(vector_stores_api, vector_store_id, file_id):
-    """Delete a single file from the vector store."""
+def delete_file(vector_stores_api, files_api, vector_store_id, file_id):
+    """Delete a single file from the vector store and from global files storage."""
+    # First, detach from the vector store
     try:
         vector_stores_api.files.delete(vector_store_id=vector_store_id, file_id=file_id)
     except Exception as e:
-        console.print(f"[bold red]Error deleting file {file_id}: {str(e)}[/bold red]")
+        console.print(f"[bold red]Error detaching file {file_id} from vector store: {str(e)}[/bold red]")
+    # Then, remove from the files storage to avoid leaks
+    try:
+        # Some SDKs accept positional or keyword argument
+        try:
+            files_api.delete(file_id)
+        except TypeError:
+            files_api.delete(file_id=file_id)
+    except Exception as e:
+        console.print(f"[bold red]Error deleting file {file_id} from files storage: {str(e)}[/bold red]")
 
 
-def delete_files_in_parallel(vector_stores_api, vector_store_id, files):
-    """Delete multiple files from the vector store in parallel using ThreadPoolExecutor."""
+def delete_files_in_parallel(vector_stores_api, files_api, vector_store_id, files):
+    """Delete multiple files from the vector store and global files storage in parallel."""
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [
-            executor.submit(delete_file, vector_stores_api, vector_store_id, file.id)
+            executor.submit(delete_file, vector_stores_api, files_api, vector_store_id, file.id)
             for file in files.data
         ]
         # Wait for all tasks to complete
@@ -1117,14 +1165,15 @@ def update_agent_files(book_path: str, assistant):
     try:
         # Obtener los archivos actuales del vector store
         vector_stores_api = client.vector_stores
+        files_api = client.files
         files = vector_stores_api.files.list(vector_store_id=vector_store_id)
 
-        # Eliminar archivos en paralelo
+        # Eliminar archivos en paralelo (vector store + files storage)
         if files.data:
             console.print(
-                f"[bold blue]Deleting {len(files.data)} old files...[/bold blue]"
+                f"[bold blue]Deleting {len(files.data)} old files from vector store and files storage...[/bold blue]"
             )
-            delete_files_in_parallel(vector_stores_api, vector_store_id, files)
+            delete_files_in_parallel(vector_stores_api, files_api, vector_store_id, files)
 
         # Cargar archivos del libro
         console.print(f"[bold blue]Loading book files from {book_path}...[/bold blue]")
