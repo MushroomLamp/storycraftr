@@ -673,6 +673,9 @@ def create_message(
             f"[bold blue]Creating response (thread {thread_id})...[/bold blue]"
         )
 
+    # Track which files we've backed up during this invocation to avoid overwriting
+    backed_up_files: set[str] = set()
+
     if file_path and os.path.exists(file_path):
         if should_print:
             console.print(
@@ -688,6 +691,10 @@ def create_message(
                 # Ensure parent dir exists, then copy
                 shutil.copyfile(file_path, backup_path)
                 _debug(f"Backed up '{file_path}' to '{backup_path}'.")
+                try:
+                    backed_up_files.add(str(Path(file_path).resolve()))
+                except Exception:
+                    pass
             except Exception as be:
                 _debug(f"Backup failed for '{file_path}': {be}")
             # Encourage tool usage for surgical edits
@@ -930,13 +937,15 @@ def create_message(
                         if name == "fs_read_text":
                             result = _read_text_file(book_path, args.get("path", ""))
                         elif name == "fs_apply_text_edits":
-                            # Before applying edits, ensure backup exists for the target file if it already exists
+                            # Before applying edits, ensure backup exists once per file for this invocation
                             try:
                                 target_rel = args.get("path", "") or ""
                                 target_abs = _normalize_path(book_path, target_rel)
-                                if target_abs.exists():
-                                    backup_abs = Path(str(target_abs) + ".back")
-                                    shutil.copyfile(str(target_abs), str(backup_abs))
+                                target_abs_str = str(target_abs)
+                                if target_abs.exists() and target_abs_str not in backed_up_files:
+                                    backup_abs = Path(target_abs_str + ".back")
+                                    shutil.copyfile(target_abs_str, str(backup_abs))
+                                    backed_up_files.add(target_abs_str)
                             except Exception as be:
                                 _debug(f"Backup before edits failed for '{args.get('path', '')}': {be}")
                             result = _fs_apply_text_edits(
