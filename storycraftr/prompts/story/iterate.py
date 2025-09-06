@@ -1,97 +1,88 @@
 # prompts/iterate.py
 
 CHECK_NAMES_PROMPT = """
-You have access to the entire text of the book, which has been loaded for analysis. 
-Your task is to correct any inconsistencies in character names throughout the entire text. 
-Ensure that each character's name is used consistently and appropriately based on the context.
-Review and enhance the following content while preserving its original format, structure, and intent.
-Ensure that 'Chapter' remains as 'Chapter,' and the same applies for 'cover,' 'back-cover,' and 'epilogue.
+Check the full book (via retrieval) for character name inconsistencies.
+Tasks:
+- Identify variants, nicknames, misspellings, or inconsistent honorifics/titles for the same character.
+- Resolve to a canonical form per character, respecting in-world usage and context.
+Editing discipline:
+- Preserve headings and chapter structure (Chapter/cover/back-cover/epilogue labels unchanged).
+- Make the minimal necessary textual edits to fix inconsistencies.
 """
 
 FIX_NAME_PROMPT = """
-Update all instances of the character name '{original_name}' to '{new_name}' throughout the text, taking into account context.
-Ensure that any diminutives, nicknames, or variations of the name '{original_name}' are also replaced appropriately with contextually fitting forms of '{new_name}'.
-Preserve the tone, style, and flow of the text as much as possible.
-Review and enhance the following content while preserving its original format, structure, and intent.
-Ensure that 'Chapter' remains as 'Chapter,' and the same applies for 'cover,' 'back-cover,' and 'epilogue.
+Replace '{original_name}' with '{new_name}' where contextually correct in this file.
+Guidelines:
+- Consider nicknames, diminutives, titles, and grammatical inflections; adjust to fit grammar and voice.
+- Do not alter scene content beyond the necessary name substitutions.
+- Preserve all headings and the existing formatting.
 """
 
 REFINE_MOTIVATION_PROMPT = """
-Refine the motivations of the character '{character_name}' throughout the story, ensuring that their actions, dialogue, and thoughts are aligned with a well-defined character arc.
-The character is involved in a story about '{story_context}'.
-Ensure the motivations are coherent with the plot and character development, maintaining the tone and style of the original text.
-Review and enhance the following content while preserving its original format, structure, and intent.
-Ensure that 'Chapter' remains as 'Chapter,' and the same applies for 'cover,' 'back-cover,' and 'epilogue.
+Refine '{character_name}' motivation using retrieval context and this guidance: {story_context}.
+Ensure actions, dialogue, and internal thoughts align with a coherent arc.
+Editing discipline:
+- Make minimal changes that improve clarity and consistency; keep voice and pacing.
+- Do not change headings or chapter numbering.
 """
 
 STRENGTHEN_ARGUMENT_PROMPT = """
-Ensure that the core argument of the story, '{argument}', is clearly articulated throughout this chapter.
-Make sure the theme and message are consistent, reinforcing the central idea.
-Review and enhance the following content while preserving its original format, structure, and intent.
-Ensure that 'Chapter' remains as 'Chapter,' and the same applies for 'cover,' 'back-cover,' and 'epilogue.
+Strengthen the core argument '{argument}' in this chapter while preserving style and structure.
+Ensure the theme is legible in beats, turning points, and character choices without heavy-handed exposition.
+Make minimal textual edits; keep headings and numbering unchanged.
 """
 
 INSERT_CHAPTER_PROMPT = """
-Insert a new chapter at position {position} in the book. When a new chapter is inserted at position {position}, all subsequent chapters will be renumbered accordingly. 
-For example, if a new chapter is inserted at position 3, the current chapter 3 will become chapter 4, chapter 4 will become chapter 5, and so on.
-Use the retrieval system to access the chapters before and after this position, ensuring that the new chapter fits seamlessly with the narrative, themes, and character arcs.
-Generate content only for the newly inserted chapter, not for the surrounding chapters.
+Insert a new chapter at position {position} using retrieval context.
+Numbering expectations:
+- When a new chapter is inserted at position {position}, all subsequent chapters will be renumbered accordingly (e.g., old chapter 3 becomes 4, 4 becomes 5, etc.).
+Requirements for the new chapter:
+- Fit tone, pacing, and arcs between surrounding chapters.
+- Begin with heading: "Chapter {position}: <Title>".
+- Scene flow: setup → conflict → development → turning point → exit hook.
+- Do not modify other chapters in this response.
 """
 
 REWRITE_SURROUNDING_CHAPTERS_PROMPT = """
-Write the chapters, ensuring that they fit seamlessly with the previous and next chapter.
-Utilize the retrieval system to gather context from the full book, making sure the tone, style, and character arcs remain consistent.
-Generate content only for the requested chapter, without altering or including content from other chapters.
-Review and enhance the following content while preserving its original format, structure, and intent.
-Ensure that 'Chapter' remains as 'Chapter,' and the same applies for 'cover,' 'back-cover,' and 'epilogue.
+Refine this chapter to flow with its neighbors using retrieval context.
+Keep numbering, heading format, and structure; make minimal necessary edits for continuity.
 """
 
 INSERT_FLASHBACK_CHAPTER_PROMPT = """
-Insert a new chapter at position {position} in the book. When a new chapter is inserted at position {position}, all subsequent chapters will be renumbered accordingly. 
-Ensure that the inserted chapter serves as a meaningful flashback.
-The flashback should provide essential backstory or context that deepens the reader's understanding of the characters, themes, or events. 
-All subsequent chapters will be renumbered accordingly. 
-For example, if a new chapter is inserted at position 3, the current chapter 3 will become chapter 4, chapter 4 will become chapter 5, and so on.
-Use the retrieval system to access the chapters before and after this position, ensuring that the new flashback fits seamlessly with the narrative, 
-maintaining the tone and character arcs established in the book.
-Generate content only for the newly inserted flashback chapter, not for the surrounding chapters.
-Review and enhance the following content while preserving its original format, structure, and intent.
-Ensure that 'Chapter' remains as 'Chapter,' and the same applies for 'cover,' 'back-cover,' and 'epilogue.
+Insert a flashback chapter at position {position} using retrieval context.
+Numbering expectations:
+- When a new chapter is inserted at position {position}, all subsequent chapters will be renumbered accordingly (e.g., old chapter 3 becomes 4, 4 becomes 5, etc.).
+Requirements for the flashback chapter:
+- Clarify backstory that deepens current arcs without stalling present momentum.
+- Begin with heading: "Chapter {position}: <Title>".
+- Anchor the flashback with a present-time frame device (opening and/or closing beat).
+- Do not modify other chapters in this response.
 """
 
 REWRITE_SURROUNDING_CHAPTERS_FOR_FLASHBACK_PROMPT = """
-Write the chapters, ensuring that they fit seamlessly with the previous and next chapter, 
-and that the newly inserted flashback enhances the overall narrative flow.
-Utilize the retrieval system to gather context from the full book, ensuring that the tone, style, and character arcs remain consistent.
-The flashback should feel integral to the story, adding depth without disrupting the pacing or narrative.
-Generate content only for the requested chapter, without altering or including content from other chapters.
-Review and enhance the following content while preserving its original format, structure, and intent.
-Ensure that 'Chapter' remains as 'Chapter,' and the same applies for 'cover,' 'back-cover,' and 'epilogue.
+Refine this chapter to integrate a newly inserted flashback adjacent to it.
+Maintain tone, pacing, and arc continuity with minimal edits; keep numbering and heading style.
 """
 
 CHECK_CHAPTER_CONSISTENCY_PROMPT = """
-Check the consistency of chapter with the entire book, ensuring that the events, tone, and character developments align with the overall narrative.
-Use the retrieval system to access all relevant information from the entire book to maintain coherence in plot, character arcs, and themes.
-Execute this check chapter by chapter, making sure each chapter fits seamlessly into the full story, and that there are no inconsistencies with the previous and subsequent chapters.
-Ensure that the writing style and tone remain consistent throughout.
+Check this chapter for consistency with the entire book using retrieval context.
+Verify: events order, character states, tone/voice, and unresolved threads.
+Make minimal fixes directly in the text without altering headings or numbering.
 """
 
 INSERT_SPLIT_CHAPTER_PROMPT = """
-Split chapter {position} at the appropriate point, ensuring that both resulting chapters maintain their coherence and flow.
-Insert a new chapter at position {position} in the book containing the first half of the split. When a new chapter is inserted at position {position}, all subsequent chapters will be renumbered accordingly. 
-The newly created chapters should complement each other, with both parts containing essential narrative elements that enhance character development, themes, or plot progression.
-Use the retrieval system to access the context of the chapter, making sure the split fits seamlessly within the overall story structure.
-Ensure the tone, style, and character arcs remain consistent in both parts, preserving the integrity of the original chapter.
-Generate content only for the new resulting chapters, not for the surrounding chapters.
-Review and enhance the content while preserving its original format, structure, and intent.
-Ensure that 'Chapter' remains as 'Chapter,' and the same applies for 'cover,' 'back-cover,' and 'epilogue.'
+Split the existing chapter at position {position} into two chapters using a natural pivot.
+Numbering expectations:
+- Create a new chapter at position {position} containing the first half; the original chapter becomes Chapter {position+1} with the remaining half.
+Requirements for the new chapter:
+- Begin with heading: "Chapter {position}: <Title>".
+- Include a coherent arc for the extracted first half and a clear handoff to the next chapter.
+- Ensure both halves keep tone and arcs consistent.
+- Generate content only for the new resulting chapters, not for the surrounding chapters.
 """
 
 REWRITE_SURROUNDING_CHAPTERS_FOR_SPLIT_PROMPT = """
-Rewrite the surrounding chapters to ensure that the split chapter fits seamlessly with the previous and next chapters.
-Ensure that the newly split chapters contribute to the narrative flow and maintain consistency with the overall story structure, tone, and character arcs.
-Use the retrieval system to gather context from the full book, ensuring that the split does not disrupt the pacing or narrative continuity.
-Generate content only for the requested chapters, without altering or including content from other chapters.
-Review and enhance the content while preserving its original format, structure, and intent.
-Ensure that 'Chapter' remains as 'Chapter,' and the same applies for 'cover,' 'back-cover,' and 'epilogue.'
+Refine this chapter to flow after a split of the previous chapter.
+Maintain continuity, tone, and character states with minimal edits; headings/numbering unchanged.
+Ensure transitions, references, and callbacks reflect the new boundary between the split chapters.
 """
