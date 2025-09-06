@@ -46,6 +46,7 @@ from storycraftr.cmd.story.publish import publish
 from storycraftr.cmd.chat import chat
 from storycraftr.agent.agents import create_or_get_assistant, update_agent_files
 from storycraftr.utils.core import load_book_config
+from storycraftr.utils.core import clear_conversation_id
 
 # Imports StoryCraftr in storycraftr.cmd.story
 from storycraftr.cmd.story.worldbuilding import worldbuilding as story_worldbuilding
@@ -299,6 +300,23 @@ def reload_files(book_path):
 
 
 @click.command()
+@click.option("--book-path", type=click.Path(), help="Path to the book directory", required=False)
+@click.option("--agent", type=str, help="Agent name whose conversation to reset (e.g., character-summary)", required=True)
+def reset_conversation(book_path, agent):
+    """Clear the persisted conversation for an agent so a fresh one is created next run."""
+    book_path = book_path or os.getcwd()
+    if not load_book_config(book_path):
+        return
+    try:
+        clear_conversation_id(book_path, agent)
+        console.print(
+            f"[yellow]Conversation for agent '{agent}' has been cleared. A new one will be created on next use.[/yellow]"
+        )
+    except Exception as e:
+        console.print(f"[red]Failed to clear conversation: {e}[/red]")
+
+
+@click.command()
 @click.option(
     "--book-path", type=click.Path(), help="Path to the book directory", required=False
 )
@@ -327,6 +345,7 @@ def cleanup(book_path, force):
 # Add common commands to CLI
 cli.add_command(init, name="init")
 cli.add_command(reload_files)
+cli.add_command(reset_conversation)
 cli.add_command(chat)
 cli.add_command(publish)
 cli.add_command(cleanup)

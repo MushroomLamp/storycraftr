@@ -219,6 +219,7 @@ def insert_new_chapter(
             new_chapter_text,
             progress,
             task_chapters,
+            skip_if_exists=True,
         )
 
         progress.update(task_chapters, advance=1)
@@ -308,6 +309,7 @@ def rewrite_surrounding_chapter(
         updated_chapter_text,
         progress,
         task_chapters,
+        skip_if_exists=True,
     )
 
     progress.update(task_chapters, advance=1)

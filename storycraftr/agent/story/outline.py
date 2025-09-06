@@ -70,6 +70,7 @@ def generate_general_outline(book_path: str, prompt: str) -> str:
         "outline/general_outline.md",
         "General Outline",
         general_outline_content,
+        skip_if_exists=True,
     )
     console.print("[bold green]✔ General outline generated successfully[/bold green]")
 
@@ -123,6 +124,7 @@ def generate_character_summary(book_path: str, prompt: str) -> str:
         "outline/character_summary.md",
         "Character Summary",
         character_summary_content,
+        skip_if_exists=True,
     )
     console.print("[bold green]✔ Character summary generated successfully[/bold green]")
 
@@ -172,7 +174,7 @@ def generate_plot_points(book_path: str, prompt: str) -> str:
 
     # Save the result to a markdown file
     save_to_markdown(
-        book_path, "outline/plot_points.md", "Main Plot Points", plot_points_content
+        book_path, "outline/plot_points.md", "Main Plot Points", plot_points_content, skip_if_exists=True
     )
     console.print("[bold green]✔ Main plot points generated successfully[/bold green]")
 
@@ -226,6 +228,7 @@ def generate_chapter_synopsis(book_path: str, prompt: str) -> str:
         "outline/chapter_synopsis.md",
         "Chapter Synopsis",
         chapter_synopsis_content,
+        skip_if_exists=True,
     )
     console.print(
         "[bold green]✔ Chapter-by-chapter synopsis generated successfully[/bold green]"

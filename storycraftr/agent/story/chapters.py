@@ -66,6 +66,7 @@ def generate_chapter(book_path: str, chapter_number: int, prompt: str) -> str:
         f"chapters/{chapter_file}",
         f"Chapter {chapter_number}",
         chapter_content,
+        skip_if_exists=True,
     )
     console.print(
         f"[bold green]✔ Chapter {chapter_number} generated successfully[/bold green]"

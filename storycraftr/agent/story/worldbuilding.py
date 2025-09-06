@@ -65,7 +65,7 @@ def generate_geography(book_path: str, prompt: str) -> str:
 
     # Save content and update agent files
     save_to_markdown(
-        book_path, "worldbuilding/geography.md", "Geography", geography_content
+        book_path, "worldbuilding/geography.md", "Geography", geography_content, skip_if_exists=True
     )
     console.print("[bold green]✔ Geography generated successfully[/bold green]")
     update_agent_files(book_path, assistant)
@@ -112,7 +112,7 @@ def generate_history(book_path: str, prompt: str) -> str:
     )
 
     # Save content and update agent files
-    save_to_markdown(book_path, "worldbuilding/history.md", "History", history_content)
+    save_to_markdown(book_path, "worldbuilding/history.md", "History", history_content, skip_if_exists=True)
     console.print("[bold green]✔ History generated successfully[/bold green]")
     update_agent_files(book_path, assistant)
 
@@ -158,7 +158,7 @@ def generate_culture(book_path: str, prompt: str) -> str:
     )
 
     # Save content and update agent files
-    save_to_markdown(book_path, "worldbuilding/culture.md", "Culture", culture_content)
+    save_to_markdown(book_path, "worldbuilding/culture.md", "Culture", culture_content, skip_if_exists=True)
     console.print("[bold green]✔ Culture generated successfully[/bold green]")
     update_agent_files(book_path, assistant)
 
@@ -209,6 +209,7 @@ def generate_magic_system(book_path: str, prompt: str) -> str:
         "worldbuilding/magic_system.md",
         "Magic/Science System",
         magic_system_content,
+        skip_if_exists=True,
     )
     console.print(
         "[bold green]✔ Magic/Science system generated successfully[/bold green]"
@@ -258,7 +259,7 @@ def generate_technology(book_path: str, prompt: str) -> str:
 
     # Save content and update agent files
     save_to_markdown(
-        book_path, "worldbuilding/technology.md", "Technology", technology_content
+        book_path, "worldbuilding/technology.md", "Technology", technology_content, skip_if_exists=True
     )
     console.print("[bold green]✔ Technology generated successfully[/bold green]")
     update_agent_files(book_path, assistant)

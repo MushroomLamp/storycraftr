@@ -226,3 +226,19 @@ def save_conversation_id(book_path: str, conversation_id: str, agent_name: str |
     except Exception:
         # Best-effort persistence; ignore errors silently
         pass
+
+
+def clear_conversation_id(book_path: str, agent_name: str | None = None) -> None:
+    """
+    Remove the persisted conversation id for the given agent in this book, if any.
+    """
+    try:
+        path = _conversation_state_path(book_path)
+        if not path.exists():
+            return
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and agent_name in data:
+            del data[agent_name]
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass

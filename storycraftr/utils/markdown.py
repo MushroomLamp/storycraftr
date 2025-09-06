@@ -15,7 +15,7 @@ console = Console()
 
 
 def save_to_markdown(
-    book_path, file_name, header, content, progress: Progress = None, task=None
+    book_path, file_name, header, content, progress: Progress = None, task=None, skip_if_exists: bool = False
 ) -> str:
     """
     Save the generated content to a specified markdown file, creating a backup if the file exists.
@@ -33,6 +33,16 @@ def save_to_markdown(
     """
     file_path = Path(book_path) / file_name
     backup_path = file_path.with_suffix(file_path.suffix + ".back")
+
+    # If configured, skip overwriting existing files (used with surgical edit tools)
+    if skip_if_exists and file_path.exists():
+        if progress and task:
+            progress.update(task, description=f"Skipping save (exists) {file_name}")
+        else:
+            console.print(
+                f"[bold yellow]Skipping save for existing file (surgical mode): {file_path}[/bold yellow]"
+            )
+        return str(file_path)
 
     # Create a backup if the file exists
     if file_path.exists():
