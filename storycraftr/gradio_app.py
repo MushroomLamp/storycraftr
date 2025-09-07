@@ -194,6 +194,27 @@ def get_book_files(root: Path) -> List[str]:
                 rels.append(str(path.relative_to(root)))
             except Exception:
                 pass
+
+    # Suggest common files even if they don't exist yet, so users can create/edit them directly
+    suggested = [
+        "outline/general_outline.md",
+        "outline/character_summary.md",
+        "outline/plot_points.md",
+        "outline/chapter_synopsis.md",
+        "worldbuilding/history.md",
+        "worldbuilding/geography.md",
+        "worldbuilding/culture.md",
+        "worldbuilding/technology.md",
+        "worldbuilding/magic_system.md",
+        "chapters/cover.md",
+        "chapters/back-cover.md",
+        "chapters/epilogue.md",
+    ]
+    existing = set(rels)
+    for s in suggested:
+        if s not in existing:
+            rels.append(s)
+
     rels.sort()
     return rels
 
@@ -599,7 +620,11 @@ def action_iterate_check_consistency(current_book: str, prompt: str) -> str:
 def action_load_file(current_book: str, rel_path: str) -> str:
     if not current_book or not rel_path:
         return ""
-    return read_text_file(Path(current_book) / rel_path)
+    target = Path(current_book) / rel_path
+    # If file doesn't exist yet, open an empty buffer so user can save to create it
+    if not target.exists():
+        return ""
+    return read_text_file(target)
 
 
 def action_save_file(current_book: str, rel_path: str, content: str) -> str:

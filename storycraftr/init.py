@@ -3,7 +3,6 @@ import json
 import requests
 from rich.console import Console
 from pathlib import Path
-import storycraftr.templates.folder_story
 from storycraftr.agent.agents import create_or_get_assistant
 from storycraftr.templates.tex import TEMPLATE_TEX
 from storycraftr.templates.paper_tex import TEMPLATE_PAPER_TEX
@@ -61,12 +60,11 @@ def init_structure_story(
         f"[blue]Initializing StoryCraftr project structure: {book_name}[/blue]"
     )
 
-    # Create project structure based on StoryCraftr templates
-    for file in storycraftr.templates.folder_story.files_to_create:
-        file_path = Path(book_path) / file["folder"] / file["filename"]
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.write_text(file["content"], encoding="utf-8")
-        console.print(f"[green]File created: {file_path}[/green]")
+    # Create base folder structure only; content files are created dynamically by agents/UI
+    Path(book_path).mkdir(parents=True, exist_ok=True)
+    (Path(book_path) / "chapters").mkdir(parents=True, exist_ok=True)
+    (Path(book_path) / "outline").mkdir(parents=True, exist_ok=True)
+    (Path(book_path) / "worldbuilding").mkdir(parents=True, exist_ok=True)
 
     # Create configuration file
     config_data = {
