@@ -770,6 +770,27 @@ def build_app() -> gr.Blocks:
                 gr.Markdown("## Workspace\nRun commands and edit files for the currently selected book.")
                 current_book_display = gr.Markdown()
 
+                # Extended Mode controls (applies process-wide via environment variables)
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        extended_mode_toggle = gr.Checkbox(label="Extended Mode", value=False, info="Enable multi-step generation with automatic step prompts.")
+                    with gr.Column(scale=1):
+                        extended_steps_num = gr.Number(label="Extended Steps", value=1, precision=0, info="Number of automated steps (X). Use 2-6 typically.")
+                    with gr.Column(scale=1):
+                        apply_extended_btn = gr.Button("Apply Extended Mode")
+                extended_status = gr.Markdown()
+
+                def set_extended_mode(enabled: bool, steps: float) -> str:
+                    try:
+                        os.environ["STORYCRAFTR_EXTENDED_MODE"] = "1" if enabled else "0"
+                        s = int(steps) if steps and steps > 0 else 1
+                        os.environ["STORYCRAFTR_EXTENDED_STEPS"] = str(s)
+                        return f"Extended Mode: {'ON' if enabled else 'OFF'} | Steps: {s}"
+                    except Exception as e:
+                        return f"Error applying extended mode: {e}"
+
+                apply_extended_btn.click(set_extended_mode, inputs=[extended_mode_toggle, extended_steps_num], outputs=extended_status)
+
                 def reflect_current_book(p: str):
                     if p:
                         return f"**Current Book:** {p}"

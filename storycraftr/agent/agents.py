@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from rich.console import Console
 from rich.progress import Progress
-from storycraftr.prompts.story.core import FORMAT_OUTPUT
+from storycraftr.prompts.story.core import FORMAT_OUTPUT, EXTENDED_MODE_INSTRUCTIONS
 from storycraftr.prompts.story.tools import (
     surgical_tools_schema,
     tool_usage_guidance_for_file,
@@ -538,7 +538,7 @@ def _fs_apply_text_edits(
             "path": str(file_path),
             "created": False,
             "changes": total_changes,
-            "preview": text[:2000],
+            "message": "Skipped: file does not exist and create_if_missing is false. No changes written.",
         }
 
     # Ensure parent dir exists
@@ -547,11 +547,24 @@ def _fs_apply_text_edits(
     normalized = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     text_to_write = original_newline.join(normalized)
     file_path.write_text(text_to_write, encoding="utf-8")
+    created_now = not exists
+    if total_changes > 0:
+        msg = (
+            f"Success: created file and applied {total_changes} change(s)."
+            if created_now
+            else f"Success: applied {total_changes} change(s)."
+        )
+    else:
+        msg = (
+            "Success: created file, but no changes were needed."
+            if created_now
+            else "No changes applied. File unchanged."
+        )
     return {
         "path": str(file_path),
-        "created": not exists,
+        "created": created_now,
         "changes": total_changes,
-        "preview": text[:2000],
+        "message": msg,
     }
 
 
@@ -637,8 +650,26 @@ def create_message(
             console.print(
                 f"[bold blue]Using provided prompt to generate new content...[/bold blue]"
             )
+        # Even if the file does not yet exist, provide tool guidance so the model
+        # knows which target path to create/edit via surgical tools.
+        if file_path:
+            try:
+                rel_path = os.path.relpath(file_path, book_path)
+            except Exception:
+                rel_path = file_path
+            tool_guidance = tool_usage_guidance_for_file(rel_path)
+            content = f"{tool_guidance}\n\n{content}"
 
-    # Generar el prompt con hash
+    # Extended mode settings (from environment)
+    extended_enabled = str(os.getenv("STORYCRAFTR_EXTENDED_MODE", "")).lower() in ("1", "true", "yes", "on")
+    try:
+        extended_steps = int(os.getenv("STORYCRAFTR_EXTENDED_STEPS", "1") or "1")
+    except Exception:
+        extended_steps = 1
+    if extended_steps < 1:
+        extended_steps = 1
+
+    # Generar el prompt con hash (base request for step 1)
     prompt_with_hash = generate_prompt_with_hash(
         f"{FORMAT_OUTPUT.format(reference_author=config.reference_author, language=config.primary_language)}\n\n{content}",
         datetime.now().strftime("%B %d, %Y"),
@@ -723,8 +754,14 @@ def create_message(
                 return "\n".join(deduped)
             return ""
 
-        # Compose base instruction + user input
+        # Compose base instruction + optional extended mode instructions
         base_instructions = assistant.instructions if hasattr(assistant, "instructions") else ""
+        if extended_enabled:
+            try:
+                base_instructions = (base_instructions or "") + "\n\n" + EXTENDED_MODE_INSTRUCTIONS.format(steps=extended_steps)
+            except Exception:
+                # Fallback if formatting fails
+                base_instructions = (base_instructions or "") + "\n\nExtended Mode is enabled. Complete the request over multiple steps."
         vector_store_id = get_vector_store_id_by_name(assistant.name, client)
 
         def _create_response(input_items):
@@ -911,15 +948,53 @@ def create_message(
                 response_obj = _create_response(input_items)
             return response_obj
 
-        # Seed the input sequence with the user's request
-        input_items: List[Dict[str, Any]] = [
-            {"role": "user", "content": prompt_with_hash}
-        ]
-
-        # First response and tool resolution
+        # Multi-step execution
+        # Seed with initial request
+        input_items: List[Dict[str, Any]] = [{"role": "user", "content": prompt_with_hash}]
         response = _create_response(input_items)
         response = _resolve_tools_loop(input_items, response)
         response_text = _extract_text(response)
+
+        # If extended mode, continue with automatic step prompts
+        if extended_enabled and extended_steps > 1:
+            for step_index in range(2, extended_steps + 1):
+                try:
+                    activity_lines.append(f"extended_step: proceeding to step {step_index}/{extended_steps}")
+                except Exception:
+                    pass
+                # Provide explicit surgical edit guidance and target path on each step
+                target_rel = None
+                try:
+                    if file_path:
+                        target_rel = os.path.relpath(file_path, book_path)
+                except Exception:
+                    target_rel = file_path if file_path else None
+                target_line = f"Target file to write/update: {target_rel}" if target_rel else ""
+                step_prompt = (
+                    f"Please proceed with step {step_index} of {extended_steps}. "
+                    f"Continue building upon the prior work with coherent, long-form output as needed. "
+                    f"Maintain structure and headings; you may make multiple surgical edits this step.\n"
+                    f"{target_line}\n"
+                    f"Read the current file state using fs_read_text on the target (if it hasnt already been provided), then use fs_apply_text_edits to append/insert/refine rather than returning the full chapter as plain output.\n\n"
+                    f"Previous step output for context:\n{response_text}"
+                )
+                # Append the next step request to the accumulated history and continue
+                input_items.append({"role": "user", "content": step_prompt})
+                response = _create_response(input_items)
+                response = _resolve_tools_loop(input_items, response)
+                latest_text = _extract_text(response)
+                if isinstance(latest_text, str) and latest_text.strip():
+                    response_text = latest_text
+
+        # If we have a target file, prefer returning the on-disk content so that
+        # any cumulative surgical edits across steps are reflected in the output.
+        try:
+            if file_path and os.path.exists(file_path):
+                on_disk = Path(file_path).read_text(encoding="utf-8")
+                if isinstance(on_disk, str) and on_disk.strip():
+                    response_text = on_disk
+        except Exception:
+            pass
 
         # Build activity summary from the final response object
         def _to_dict(obj) -> Dict[str, Any]:
