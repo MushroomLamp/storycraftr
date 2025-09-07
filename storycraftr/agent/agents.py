@@ -11,6 +11,10 @@ from openai import OpenAI
 from rich.console import Console
 from rich.progress import Progress
 from storycraftr.prompts.story.core import FORMAT_OUTPUT
+from storycraftr.prompts.story.tools import (
+    surgical_tools_schema,
+    tool_usage_guidance_for_file,
+)
 from storycraftr.utils.core import load_book_config, generate_prompt_with_hash
 from storycraftr.utils.core import load_conversation_id, save_conversation_id, clear_conversation_id
 from pathlib import Path
@@ -551,87 +555,7 @@ def _fs_apply_text_edits(
     }
 
 
-def _surgical_tools_schema() -> List[Dict[str, Any]]:
-    return [
-        {
-            "type": "function",
-            "name": "fs_read_text",
-            "description": "Read a UTF-8 text file within the current book. Use before editing to get exact anchors.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Relative path within the book (e.g., chapters/chapter-1.md)."
-                    }
-                },
-                "required": ["path"],
-            },
-        },
-        {
-            "type": "function",
-            "name": "fs_apply_text_edits",
-            "description": "Apply surgical text edits to a file (replace text, replace between markers, insert before/after). Create file if missing.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Target file path relative to book."},
-                    "create_if_missing": {"type": "boolean", "default": True},
-                    "edits": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "oneOf": [
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "type": {"type": "string", "enum": ["replace_text"]},
-                                        "find": {"type": "string"},
-                                        "replace": {"type": "string"},
-                                        "use_regex": {"type": "boolean", "default": False},
-                                        "case_sensitive": {"type": "boolean", "default": True},
-                                        "loose_whitespace": {"type": "boolean", "default": True},
-                                        "normalize_quotes": {"type": "boolean", "default": True},
-                                        "occurrence": {"type": "integer", "minimum": 1}
-                                    },
-                                    "required": ["type", "find", "replace"]
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "type": {"type": "string", "enum": ["replace_between"]},
-                                        "start_marker": {"type": "string"},
-                                        "end_marker": {"type": "string"},
-                                        "replacement": {"type": "string"},
-                                        "include_markers": {"type": "boolean", "default": False},
-                                        "occurrence": {"type": "integer", "minimum": 1},
-                                        "case_sensitive": {"type": "boolean", "default": True},
-                                        "loose_whitespace": {"type": "boolean", "default": True},
-                                        "normalize_quotes": {"type": "boolean", "default": True}
-                                    },
-                                    "required": ["type", "start_marker", "end_marker", "replacement"]
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "type": {"type": "string", "enum": ["insert_before", "insert_after"]},
-                                        "anchor": {"type": "string"},
-                                        "insert": {"type": "string"},
-                                        "occurrence": {"type": "integer", "minimum": 1},
-                                        "case_sensitive": {"type": "boolean", "default": True},
-                                        "loose_whitespace": {"type": "boolean", "default": True},
-                                        "normalize_quotes": {"type": "boolean", "default": True}
-                                    },
-                                    "required": ["type", "anchor", "insert"]
-                                }
-                            ]
-                        }
-                    }
-                },
-                "required": ["path", "edits"],
-            },
-        },
-    ]
+ 
 
 
 def create_message(
@@ -703,10 +627,7 @@ def create_message(
                 rel_path = os.path.relpath(file_path, book_path)
             except Exception:
                 rel_path = file_path
-            tool_guidance = (
-                "You can modify existing files using tools. When editing an existing file, prefer making surgical edits via fs_read_text and fs_apply_text_edits instead of outputting the entire file.\n"
-                f"Target file (relative to book): {rel_path}. Steps: 1) fs_read_text to get current text, 2) decide minimal changes, 3) fs_apply_text_edits with precise edits (replace_text, replace_between, insert_before/insert_after)."
-            )
+            tool_guidance = tool_usage_guidance_for_file(rel_path)
             content = (
                 f"{tool_guidance}\n\nHere is the existing content to improve (for context):\n{file_content}\n\n{content}"
             )
@@ -812,7 +733,7 @@ def create_message(
                 if vector_store_id
                 else [{"type": "file_search"}]
             )
-            tools.extend(_surgical_tools_schema())
+            tools.extend(surgical_tools_schema())
             kwargs = dict(
                 model=assistant.model,
                 input=input_items,
@@ -821,6 +742,7 @@ def create_message(
                 top_p=1.0,
                 tools=tools,
                 tool_choice="auto",
+                parallel_tool_calls=False
             )
             _debug("Creating response with tools: file_search + surgical (fs_read_text, fs_apply_text_edits)")
             return client.responses.create(**kwargs)
